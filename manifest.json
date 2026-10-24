@@ -1,0 +1,37 @@
+{
+  "id": "./",
+  "name": "Perio Supervisor",
+  "short_name": "Perio Supervisor",
+  "description": "Supervisor app to time, score, sign, transfer and sync periodontal case sheets, College of Dentistry, University of Karbala.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#c46400",
+  "theme_color": "#111111",
+  "lang": "en",
+  "categories": [
+    "education",
+    "medical"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
