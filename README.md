@@ -39,7 +39,11 @@ or
 ## Grading a case
 
 1. **Cases** tab → **Scan student QR**. The case appears in your list.
-2. Tap **Start timer**. Use **Stop / Resume**, or **Stop all timers / Resume all** for every running case at once.
+2. Tap **Start timer** and choose how it counts:
+   - **Countdown** (default): pick a session end time, **10:30 AM**, **12:30 PM** or **2:30 PM**. The app picks the next upcoming one from the phone's clock, and you can change it. The timer shows the time remaining until that time (for example, started at 8:50 with 10:30 chosen, it counts down 1:40). Times that already passed are greyed out.
+   - **Duration**: the original timer, where you type hours and minutes.
+
+   Use **Stop / Resume**, or **Stop all timers / Resume all** for every running case at once.
 3. Tap **Grade** and enter the scores: case sheet /10, motivation + instruction /10, indices /20, diagnosis /20, evaluation /40, infection control and behavior /5, plus the calculus score. Optionally tick **Apply penalty** (a number of points per minute over the time limit).
 4. **Save**, or **Save & share** to show the **score QR** for the student to scan.
 5. **Share** shows the score QR again at any time. **Edit score** changes a case **you** graded.
@@ -62,7 +66,8 @@ The doctor who grades a case is the one whose signature is on it.
 ### Sync graded cases (so everyone's totals are right)
 - **Sync graded cases** → **Send by QR** (choose date, group, and *only me / all doctors*) or **Send file**.
 - The other doctor uses **Receive by QR** (camera stays open while the QR codes change) or **Receive file** (both doctors use the same password for files).
-- After receiving, a list shows only the **new cases you did not have**. Tick the ones you want and tap **Add selected**.
+- After receiving, a list shows only the **new cases you did not have**. Tick the ones you want and tap **Apply**.
+- If the **same case was graded by two different doctors**, both grades are shown **side by side** (doctor, final score, every score part). Choose which one to keep.
 - No duplicates. Each case keeps the doctor who graded it. Cases graded by another doctor are **read-only** for you.
 - Only **graded** cases sync. Ongoing cases can only be transferred.
 - Do it both ways so both doctors end up with everything.
@@ -71,9 +76,10 @@ The doctor who grades a case is the one whose signature is on it.
 
 ## Reports and organizing
 
-- **Grades PDF**: pick a **date** (today by default), a **group**, and which doctors, then **Export PDF** for a neat landscape table to copy grades by hand. Leave **Bundle these cases after export** ticked to save them as a bundle named like *Group F · 24/10/2026*.
+- **Grades PDF**: pick a **date** from a calendar (today by default), a **group**, and tick the **doctors** whose graded cases you want (one box per doctor found in the saved cases), then **Export PDF** for a neat landscape table to copy grades by hand. Leave **Bundle these cases after export** ticked to save them as a bundle named like *Group F · 24/10/2026*.
 - **Bundles** tab: open, rename or delete bundles.
-- **Students** tab: every student's cases and scores, and a score report PDF.
+- **Students** tab: every student's cases, scores and **which doctor graded each case** (in the details and in the report PDF).
+- **Filters** (Cases tab): pick dates from a calendar, and filter by **graded by**, one or several doctors.
 - **Backup** tab: **Export backup** and **Restore**. Backups are **encrypted with a password you choose. It cannot be recovered**, so keep it safe.
 
 ---

@@ -1,6 +1,6 @@
 /* Offline support for Perio Supervisor.
    Bump VERSION whenever you upload a new index.html so phones refresh their cached copy. */
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.2.0';
 const CACHE = 'perio-supervisor-' + VERSION;
 const ASSETS = [
   './',

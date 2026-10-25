@@ -2781,6 +2781,27 @@ function qrSvg(t,ec){qrcode.stringToBytes=function(s){return Array.from(te.encod
 function modal(html,onClose){var o=document.createElement("div");o.style.cssText="position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;font:15px/1.4 Calibri,Carlito,Arial,sans-serif";
  o.innerHTML='<div style="background:#fff;color:#111;border-radius:14px;max-width:440px;width:100%;max-height:92vh;overflow:auto;padding:16px">'+html+'<div style="text-align:center;margin-top:12px"><button data-x style="border:1px solid #bbb;background:#fff;color:#111;border-radius:8px;padding:8px 20px;font:inherit;cursor:pointer">Close</button></div></div>';
  document.body.appendChild(o);function close(){if(o.parentNode)o.parentNode.removeChild(o);if(onClose)onClose()}o.querySelector("[data-x]").onclick=close;return{el:o,close:close}}
+function calPick(iso,cb){
+ var now=new Date(),ref=iso&&/^\d{4}-\d\d-\d\d$/.test(iso)?new Date(iso+"T00:00:00"):now,vy=ref.getFullYear(),vm=ref.getMonth(),
+  MN=["January","February","March","April","May","June","July","August","September","October","November","December"],
+  p2=function(n){return("0"+n).slice(-2)},tod=now.getFullYear()+"-"+p2(now.getMonth()+1)+"-"+p2(now.getDate()),
+  B="border:1px solid #ccc;background:#fff;color:#111;border-radius:8px;font:inherit;cursor:pointer;";
+ var m=modal('<div data-cal></div>'),box=m.el.querySelector("[data-cal]");
+ function draw(){
+  var first=(new Date(vy,vm,1).getDay()+1)%7,dim=new Date(vy,vm+1,0).getDate(),h='<div style="display:flex;align-items:center;gap:4px;margin-bottom:8px"><button data-cy="-1" style="'+B+'padding:8px 10px">«</button><button data-cm="-1" style="'+B+'padding:8px 12px">‹</button><b style="flex:1;text-align:center">'+MN[vm]+" "+vy+'</b><button data-cm="1" style="'+B+'padding:8px 12px">›</button><button data-cy="1" style="'+B+'padding:8px 10px">»</button></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center">';
+  ["Sa","Su","Mo","Tu","We","Th","Fr"].forEach(function(d){h+='<div style="font-size:12px;color:#777;padding:2px 0">'+d+"</div>"});
+  for(var i=0;i<first;i++)h+="<span></span>";
+  for(var d=1;d<=dim;d++){var v=vy+"-"+p2(vm+1)+"-"+p2(d),on=v===iso,td=v===tod;h+='<button data-d="'+v+'" style="'+B+"padding:10px 0;"+(on?"background:#0f766e;color:#fff;border-color:#0f766e;":td?"border-color:#0f766e;font-weight:700;":"")+'">'+d+"</button>"}
+  h+='</div><div style="display:flex;gap:8px;margin-top:10px"><button data-today style="'+B+'flex:1;padding:9px">Today</button><button data-clr style="'+B+'flex:1;padding:9px">Clear</button></div>';
+  box.innerHTML=h}
+ box.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
+  if(b.dataset.cm){vm+=+b.dataset.cm;if(vm<0){vm=11;vy--}if(vm>11){vm=0;vy++}draw();return}
+  if(b.dataset.cy){vy+=+b.dataset.cy;draw();return}
+  if(b.dataset.d){m.close();cb(b.dataset.d);return}
+  if(b.hasAttribute("data-today")){m.close();cb(tod);return}
+  if(b.hasAttribute("data-clr")){m.close();cb("")}});
+ draw();
+}
 function scan(cb,keep){var seen={},alive=true,stream=null,bd=window.BarcodeDetector?new BarcodeDetector({formats:["qr_code"]}):null,
  btn='display:block;flex:1;text-align:center;border:1px solid #0f766e;color:#0f766e;border-radius:8px;padding:10px 6px;font-weight:700;cursor:pointer',
  m=modal('<b>Scan QR code</b><video playsinline muted style="width:100%;border-radius:8px;margin-top:8px;background:#000;min-height:120px"></video><div data-st style="font-size:13px;color:#555;margin:6px 0">Starting camera…</div><div style="display:flex;gap:8px"><label style="'+btn+';background:#0f766e;color:#fff">Take photo<input type="file" accept="image/*" capture="environment" style="display:none"></label><label style="'+btn+'">From gallery<input type="file" accept="image/*" style="display:none"></label></div><div style="font-size:12px;color:#777;margin-top:8px">If the live camera doesn’t start, tap “Take photo”, fill the frame with the QR code and hold steady.</div>',function(){alive=false;if(stream)stream.getTracks().forEach(function(t){t.stop()})}),
@@ -2795,7 +2816,7 @@ function scan(cb,keep){var seen={},alive=true,stream=null,bd=window.BarcodeDetec
  function loop(){if(!alive)return;if(v.videoWidth){var t=dec(v,v.videoWidth,v.videoHeight,false);if(t){if(!keep)return done(t);done(t)}}setTimeout(loop,120)}
  function fail(e){st.textContent=(e&&e.name==="NotAllowedError"?"This page isn’t allowed to use the camera here. ":"Live camera isn’t available. ")+"Use “Take photo” below."}
  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(s){if(!alive){s.getTracks().forEach(function(t){t.stop()});return}stream=s;v.srcObject=s;v.play();st.textContent="Point the camera at the QR code.";loop()}).catch(fail);else fail()}
-return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan}
+return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan,calPick:calPick}
 })();
 var KL=(function(){
 var S0=function(){return{q:"",f:{},sort:"time",dir:-1,sel:{},mode:false,open:false,bundle:"",vis:[]}},STS={cases:S0(),folders:S0()},st=STS.cases,ctx,bar,list;
@@ -2814,7 +2835,7 @@ function apply(all){
  var f=st.f,q=st.q.trim().toLowerCase(),cb=curB(),d1=f.d1?new Date(f.d1+"T00:00:00").getTime():null,d2=f.d2?new Date(f.d2+"T23:59:59").getTime():null;
  var r=all.filter(function(x){
   if(q&&(x.name+" "+x.student+" "+x.group).toLowerCase().indexOf(q)<0)return false;
-  if(f.group&&x.group!==f.group)return false;if(f.gender&&x.gender!==f.gender)return false;
+  if(f.group&&x.group!==f.group)return false;if(f.gender&&x.gender!==f.gender)return false;if(f.docs&&f.docs.length&&f.docs.indexOf(x.doc||"")<0)return false;
   if(f.scored==="1"&&x.score==null)return false;if(f.scored==="0"&&x.score!=null)return false;
   if((d1!==null&&!(x.date>=d1))||(d2!==null&&!(x.date<=d2)))return false;
   if(!rng(x.bop,f.b1,f.b2)||!rng(x.cli,f.c1,f.c2)||!rng(x.score,f.s1,f.s2)||!rng(x.age,f.a1,f.a2))return false;
@@ -2846,18 +2867,26 @@ function home(){
  var c=bar&&bar.querySelector("[data-kcount]");if(c)c.textContent=B.length+" bundle"+(B.length===1?"":"s");return true}
 var IC_F='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>',IC_S='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4L3 8M7 4l4 4M17 20V4M17 20l-4-4M17 20l4-4"/></svg>';
 function dfmt(iso){return iso?iso.split("-").reverse().join("/"):""}
-function dIn(l,k){return'<label>'+l+'<input data-kd="'+k+'" type="text" inputmode="numeric" dir="ltr" lang="en" maxlength="10" placeholder="DD/MM/YYYY" value="'+esc(dfmt(st.f[k]))+'"></label>'}
+function dIn(l,k){return'<label>'+l+'<input data-kd="'+k+'" type="text" readonly dir="ltr" lang="en" placeholder="Tap to pick a date" value="'+esc(dfmt(st.f[k]))+'" style="cursor:pointer;background:#fff"></label>'}
 function popFilter(){
- var gs=[],f=st.f;ctx.items().forEach(function(x){if(x.group&&gs.indexOf(x.group)<0)gs.push(x.group)});gs.sort();
+ var ds=[];ctx.items().forEach(function(x){if(x.doc&&ds.indexOf(x.doc)<0)ds.push(x.doc)});ds.sort();var sd=(st.f.docs||[]),dlab=function(){var s=st.f.docs||[];return s.length?s.map(function(d){return"Dr. "+d}).join(", "):"Any"},docsSel=ds.length?'<label>Graded by<button type="button" data-kdocs style="display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;box-sizing:border-box;min-height:38px;padding:8px 9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:#111;cursor:pointer;text-align:left"><span dir="auto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dlab())+'</span><span style="flex:none">▾</span></button></label>':"<span></span>";var gs=[],f=st.f;ctx.items().forEach(function(x){if(x.group&&gs.indexOf(x.group)<0)gs.push(x.group)});gs.sort();
  var op=function(v,cur,t){return'<option value="'+esc(v)+'"'+(cur===v?" selected":"")+'>'+esc(t||v)+'</option>'},
   rg=function(l,a,b){return'<label>'+l+'<span class="rg"><input data-kf="'+a+'" inputmode="decimal" placeholder="min" value="'+esc(f[a]||"")+'"><input data-kf="'+b+'" inputmode="decimal" placeholder="max" value="'+esc(f[b]||"")+'"></span></label>'};
- var m=KC.modal('<div class="kl" style="padding:0"><b style="font-size:16px">Filters</b><div class="klp"><label>Group<select data-kf="group">'+op("",f.group||"","Any")+gs.map(function(g){return op(g,f.group||"")}).join("")+'</select></label><label>Gender<select data-kf="gender">'+op("",f.gender||"","Any")+op("M",f.gender)+op("F",f.gender)+'</select></label><label>Status<select data-kf="scored">'+op("",f.scored||"","Any")+op("1",f.scored,"Scored")+op("0",f.scored,"Not scored")+'</select></label><span></span>'+dIn('Case date from','d1')+dIn('Case date to','d2')+''+rg("BOP %","b1","b2")+rg("Calculus score","c1","c2")+rg("Final score","s1","s2")+rg("Age","a1","a2")+'</div><div class="klr"><button data-rs>Reset all</button></div></div>');
+ var m=KC.modal('<div class="kl" style="padding:0"><b style="font-size:16px">Filters</b><div class="klp"><label>Group<select data-kf="group">'+op("",f.group||"","Any")+gs.map(function(g){return op(g,f.group||"")}).join("")+'</select></label><label>Gender<select data-kf="gender">'+op("",f.gender||"","Any")+op("M",f.gender)+op("F",f.gender)+'</select></label><label>Status<select data-kf="scored">'+op("",f.scored||"","Any")+op("1",f.scored,"Scored")+op("0",f.scored,"Not scored")+'</select></label>'+docsSel+dIn('Case date from','d1')+dIn('Case date to','d2')+''+rg("BOP %","b1","b2")+rg("Calculus score","c1","c2")+rg("Final score","s1","s2")+rg("Age","a1","a2")+'</div><div class="klr"><button data-rs>Reset all</button></div></div>');
  m.el.addEventListener("input",function(e){var t=e.target;
+  if(t.hasAttribute&&t.hasAttribute("data-kdoc")){st.f.docs=[].map.call(m.el.querySelectorAll("[data-kdoc]:checked"),function(x){return x.value});if(!st.f.docs.length)delete st.f.docs;drawBar();rr();return}
   if(t.dataset&&t.dataset.kd){var v=t.value.replace(/[\u0660-\u0669]/g,function(c){return c.charCodeAt(0)-1632}).replace(/\D/g,"").slice(0,8),o=v;if(v.length>4)o=v.slice(0,2)+"/"+v.slice(2,4)+"/"+v.slice(4);else if(v.length>2)o=v.slice(0,2)+"/"+v.slice(2);t.value=o;
    var q=/^(\d\d)\/(\d\d)\/(\d{4})$/.exec(o),ok=false;if(q){var dd=+q[1],mm=+q[2],yy=+q[3],dt=new Date(yy,mm-1,dd);ok=yy>1999&&dt.getMonth()===mm-1&&dt.getDate()===dd}
    st.f[t.dataset.kd]=ok?q[3]+"-"+q[2]+"-"+q[1]:"";t.style.borderColor=o.length===10&&!ok?"#b91c1c":"";drawBar();rr();return}
   if(t.dataset&&t.dataset.kf){st.f[t.dataset.kf]=t.value;drawBar();rr()}});
  m.el.querySelector("[data-rs]").onclick=function(){st.f={};m.close();drawBar();rr();popFilter()};
+ m.el.addEventListener("click",function(e){var t=e.target,bt=t.closest&&t.closest("[data-kdocs]");
+  if(bt){var pm=KC.modal('<b>Graded by</b><div style="font-size:13px;color:#555;margin:2px 0 6px">Choose one or more doctors.</div>'+ds.map(function(d){return'<label style="display:flex;align-items:center;gap:10px;padding:7px 0;font-size:16px;color:#111"><input type="checkbox" data-kdoc value="'+esc(d)+'"'+((st.f.docs||[]).indexOf(d)>=0?" checked":"")+' style="width:22px;height:22px;min-width:22px;margin:0;padding:0;flex:none"><span dir="auto">Dr. '+esc(d)+'</span></label>'}).join("")+'<div style="margin-top:8px"><button data-dclr style="border:1px solid #bbb;background:#fff;color:#111;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer">Any doctor</button></div>');
+   var setT=function(){bt.firstChild.textContent=dlab()};
+   pm.el.addEventListener("change",function(){var s=[].map.call(pm.el.querySelectorAll("[data-kdoc]:checked"),function(x){return x.value});if(s.length)st.f.docs=s;else delete st.f.docs;setT();drawBar();rr()});
+   pm.el.querySelector("[data-dclr]").onclick=function(){delete st.f.docs;[].forEach.call(pm.el.querySelectorAll("[data-kdoc]"),function(x){x.checked=false});setT();drawBar();rr()};
+   return}
+  if(t.dataset&&t.dataset.kd){KC.calPick(st.f[t.dataset.kd]||"",function(iso){if(iso)st.f[t.dataset.kd]=iso;else delete st.f[t.dataset.kd];t.value=dfmt(iso);drawBar();rr()})}});
 }
 function popSort(){
  var m=KC.modal('<div class="kl" style="padding:0"><b style="font-size:16px">Sort by</b>'+SORTS.map(function(x){return'<label class="klk" style="font-size:15px;padding:6px 0"><input type="radio" name="ks" value="'+x[0]+'"'+(st.sort===x[0]?" checked":"")+'> '+x[1]+'</label>'}).join("")+'<div class="klr"><button data-sd="-1" class="'+(st.dir<0?"on":"")+'">↓ Descending</button><button data-sd="1" class="'+(st.dir>0?"on":"")+'">↑ Ascending</button></div></div>');
@@ -2932,7 +2961,7 @@ function vCases(){
  var a=active();
  return '<div class="card"><div class="m">'+(a?'Signed in as <b>Dr. '+esc(a.name)+'</b>':'Create a supervisor account first (Account tab).')+'</div><div class="row"><button class="b p" data-a="scan" style="flex:1">Scan student QR</button></div><div class="row"><button class="b" data-a="stopall" style="flex:1">Stop all timers</button><button class="b" data-a="resumeall" style="flex:1">Resume all</button></div><div class="row"><button class="b" data-a="trsend" style="flex:1">Transfer cases</button><button class="b" data-a="trrecv" style="flex:1">Receive cases</button></div><div class="row"><button class="b" data-a="sync" style="flex:1">Sync graded cases</button><button class="b" data-a="gpdf" style="flex:1">Grades PDF</button></div><div class="m" id="runc" style="margin-top:6px"></div></div><div id="kbar"></div><div id="klist"></div>';
 }
-function items(){return CAS().map(function(c){return{id:c.id,name:c.patient,student:c.student,group:c.group||"",age:parseFloat(c.age),gender:c.gender,bop:parseFloat(c.bop),cli:parseFloat(c.cli),score:c.fn!=null?c.fn:null,date:c.ts,saved:c.ts}})}
+function items(){return CAS().map(function(c){return{id:c.id,name:c.patient,student:c.student,group:c.group||"",age:parseFloat(c.age),gender:c.gender,bop:parseFloat(c.bop),cli:parseFloat(c.cli),score:c.fn!=null?c.fn:null,doc:c.doc||"",date:c.ts,saved:c.ts}})}
 function renderList(){
  var all=items(),h="";if(KL.home())return;var vis=KL.apply(all);
  vis.forEach(function(x){var c=getCase(x.id),st=c.state;if(st==="transferred"){h+='<div class="card" style="opacity:.85"><b dir="auto">'+esc(c.patient)+'</b> <span class="m">· '+esc(c.age)+' · '+esc(c.gender)+'</span><div class="m" dir="auto">Student: '+esc(c.student)+' · Group '+esc(c.group)+'</div><div class="m" style="margin-top:4px">↪ Transferred to another doctor · <span data-xr="'+c.id+'"></span></div><div class="row"><button class="b" data-a="trshow" data-id="'+c.id+'">Show QR again</button><button class="b d" data-a="del" data-id="'+c.id+'">Delete</button></div></div>';return}var tm="",bt="",act=st==="running"||st==="paused"||st==="grading";
@@ -2999,14 +3028,33 @@ function tick(){
   var el=elapsed(c,now),left=(c.dur||0)*60000-el,over=left<0,om=overMin(c,el);
   e.textContent=(over?"−":"")+fmtT(Math.abs(left)).replace("−","");e.style.color=over?"#b91c1c":c.state==="running"?"#15803d":"#666";
   var t=document.querySelector('[data-tl="'+c.id+'"]');
-  if(t)t.textContent=(c.state==="running"?"Running":"Stopped")+" · limit "+fmtT((c.dur||0)*60000)+(over?" · over by "+om+" min · penalty so far −"+r1(om*0.3):" · time left")});
+  if(t)t.textContent=(c.state==="running"?"Running":"Stopped")+" · limit "+fmtT((c.dur||0)*60000)+(c.sess?" (until "+c.sess+")":"")+(over?" · over by "+om+" min · penalty so far −"+r1(om*0.3):" · time left")});
 }
+var SESS=[[10,30,"10:30 AM"],[12,30,"12:30 PM"],[14,30,"2:30 PM"]];
+function sessEnd(s,now){var d=new Date(now);d.setHours(s[0],s[1],0,0);return d.getTime()}
+function sessNext(now){for(var i=0;i<SESS.length;i++)if(sessEnd(SESS[i],now)-now>=60000)return i;return -1}
 function startTimer(id){
- var c=getCase(id);if(!c)return;var dur=ld("kc_dur",120);
- var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+dur%60+'"></div><div class="row"><button class="b p" style="flex:1">Start timer</button></div>');
- m.el.querySelector(".b").onclick=function(){
-  var mins=(parseInt($("#th").value)||0)*60+(parseInt($("#tn").value)||0);if(mins<1){toast("Set a time limit of at least 1 minute.");return}
-  var c2=getCase(id);Object.assign(c2,{state:"running",t0:Date.now(),dur:mins,pt:0,p0:null});putCase(c2);sv("kc_dur",mins);m.close();view();toast("Timer started.")};
+ var c=getCase(id);if(!c)return;var dur=ld("kc_dur",120),sel=sessNext(Date.now()),tabv=sel>=0?"cd":"sw",tm=null;
+ var sb=SESS.map(function(s,i){return'<button class="b" data-s="'+i+'" style="flex:1;padding:12px 4px;font-size:16px">'+s[2]+'</button>'}).join("");
+ var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div class="row" style="margin:0 0 10px"><button class="b" data-tab="cd" style="flex:1">Countdown</button><button class="b" data-tab="sw" style="flex:1">Duration</button></div><div data-pcd><div class="m" style="margin-bottom:6px">Count down to:</div><div class="row" style="margin:0">'+sb+'</div><div data-pv style="margin-top:10px;font-size:16px"></div></div><div data-psw style="display:none"><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.round(dur%60)+'"></div></div><div class="row"><button class="b p" data-go style="flex:1">Start timer</button></div>',function(){clearInterval(tm)}),q=function(s){return m.el.querySelector(s)};
+ function upd(){var now=Date.now();
+  if(sel>=0&&sessEnd(SESS[sel],now)-now<60000)sel=sessNext(now);
+  [].forEach.call(m.el.querySelectorAll("[data-s]"),function(b){var i=+b.dataset.s,past=sessEnd(SESS[i],now)-now<60000;b.disabled=past;b.style.opacity=past?".4":"1";b.className=(i===sel?"b p":"b")});
+  [].forEach.call(m.el.querySelectorAll("[data-tab]"),function(b){b.className=b.dataset.tab===tabv?"b p":"b"});
+  q("[data-pcd]").style.display=tabv==="cd"?"":"none";q("[data-psw]").style.display=tabv==="sw"?"":"none";
+  var pv=q("[data-pv]");
+  if(sel<0)pv.innerHTML='<span class="m">All of today’s session times have passed. Use the Duration tab.</span>';
+  else pv.innerHTML='Ends at <b>'+SESS[sel][2]+'</b> · remaining <b>'+fmtT(sessEnd(SESS[sel],now)-now)+'</b>'}
+ m.el.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
+  if(b.dataset.tab){tabv=b.dataset.tab;upd();return}
+  if(b.dataset.s!=null&&!b.disabled){sel=+b.dataset.s;upd()}});
+ q("[data-go]").onclick=function(){
+  var now=Date.now(),mins,sess="";
+  if(tabv==="cd"){if(sel<0){toast("No session time left today. Use the Duration tab.");return}var end=sessEnd(SESS[sel],now);if(end-now<60000){toast("Pick a later time.");return}mins=Math.round((end-now)/1000)/60;sess=SESS[sel][2]}
+  else{mins=(parseInt(q("#th").value)||0)*60+(parseInt(q("#tn").value)||0);if(mins<1){toast("Set a time limit of at least 1 minute.");return}sv("kc_dur",mins)}
+  var c2=getCase(id);Object.assign(c2,{state:"running",t0:now,dur:mins,pt:0,p0:null});if(sess)c2.sess=sess;else delete c2.sess;
+  putCase(c2);clearInterval(tm);m.close();view();toast("Timer started."+(sess?" Counting down to "+sess+".":""))};
+ upd();tm=setInterval(upd,1000);
 }
 function editor(id){
  var a=active();if(!a){toast("Create a supervisor account first.");tab="acc";view();return}
@@ -3063,7 +3111,7 @@ function renderStudents(){
 }
 function detail(s){
  var st=stat(s.total),h='<b dir="auto" style="font-size:17px">'+esc(s.name)+'</b><div class="m">'+(s.group?"Group "+esc(s.group)+" · ":"")+s.scored+" scored of "+s.cases.length+' cases</div><div style="margin-top:8px"><b style="font-size:26px">'+s.total+'</b> <span class="m">minimum '+MIN+' · maximum '+MAX+'</span></div><div class="pbar"><i style="width:'+Math.min(100,s.total/MAX*100)+'%"></i><u></u></div><div class="'+st.c+'"><b>'+st.t+'</b> <span class="m">'+st.d+'</span></div><div style="margin-top:10px">';
- s.cases.forEach(function(c){h+='<div class="row" style="margin-top:4px;border-bottom:1px solid #eee;padding-bottom:4px"><span dir="auto" style="flex:1">'+esc(c.patient)+' <span class="m">'+dmy(c.ts)+'</span></span><b>'+(c.fn!=null?c.fn:'<span class="m">Not scored</span>')+'</b></div>'});
+ s.cases.forEach(function(c){h+='<div class="row" style="margin-top:4px;border-bottom:1px solid #eee;padding-bottom:4px"><span dir="auto" style="flex:1">'+esc(c.patient)+' <span class="m">'+dmy(c.ts)+'</span>'+(c.fn!=null&&c.doc?'<div class="m">Graded by Dr. '+esc(c.doc)+'</div>':"")+'</span><b>'+(c.fn!=null?c.fn:'<span class="m">Not scored</span>')+'</b></div>'});
  h+='</div><div class="row"><button class="b p" data-pdf style="flex:1">Export PDF</button></div>';
  var m=KC.modal(h);m.el.querySelector("[data-pdf]").onclick=function(){exportPdf([s])};
 }
@@ -3081,9 +3129,9 @@ async function makePdf(L){
  }
  L.forEach(function(s){var st=stat(s.total);
   add('<div style="margin-top:18px;font-weight:700;font-size:15px;border-bottom:2px solid #000;padding-bottom:4px" dir="ltr"><bdi dir="auto">'+esc(s.name)+'</bdi>'+(s.group?' <span style="font-weight:400;font-size:13px">· Group '+esc(s.group)+'</span>':"")+'</div>',130);
-  add(row(cell("330px","Patient",1)+cell("130px","Case date",1)+cell("110px","Score",1,"center")));
-  s.cases.forEach(function(c){add(row(cell("330px",esc(c.patient))+cell("130px",dmy(c.ts))+cell("110px",c.fn!=null?c.fn:"Not scored",0,"center")))});
-  add(row(cell("460px","Total score",1)+cell("110px",s.total,1,"center"),"border-top:1.5px solid #000;"));
+  add(row(cell("250px","Patient",1)+cell("110px","Case date",1)+cell("120px","Graded by",1)+cell("90px","Score",1,"center")));
+  s.cases.forEach(function(c){add(row(cell("250px",esc(c.patient))+cell("110px",dmy(c.ts))+cell("120px",c.fn!=null&&c.doc?"Dr. "+esc(c.doc):"–")+cell("90px",c.fn!=null?c.fn:"Not scored",0,"center")))});
+  add(row(cell("480px","Total score",1)+cell("90px",s.total,1,"center"),"border-top:1.5px solid #000;"));
   add('<div style="padding:6px;border:1.5px solid #000;margin-top:8px;font-weight:700">Result: '+st.t+(st.d?" – "+st.d:"")+' <span style="font-weight:400">(minimum '+MIN+', maximum '+MAX+')</span></div>');
  });
  pages.forEach(function(p,i){var f=document.createElement("div");f.style.cssText="position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:11px";f.textContent="Page "+(i+1)+" of "+pages.length;p.pg.appendChild(f)});
@@ -3136,7 +3184,7 @@ function bytes(s){return te.encode(s).length}
 function nid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function own(c){if(c.fn==null)return true;var a=active();if(!a)return true;return c.did?c.did===a.id:(!c.doc||c.doc===a.name)}
 function xsnap(c,now){var s=c.state,pt=c.pt||0,p0=c.p0==null?null:c.p0;if(s==="grading"){if(c.prev==="running"){pt+=now-p0;p0=null;s="running"}else s="paused"}return{state:s,t0:c.t0,dur:c.dur,pt:pt,p0:p0}}
-function xpack(c,sn){var x=sn||c.xs;return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],x.state,x.t0,x.dur,x.pt,x.p0]}
+function xpack(c,sn){var x=sn||c.xs;return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],x.state,x.t0,x.dur,x.pt,x.p0,c.sess||""]}
 function xchunks(rows,from){var gr=[],cur=[],sz=0;rows.forEach(function(r){var l=bytes(JSON.stringify(r))+1;if(cur.length&&sz+l>900){gr.push(cur);cur=[];sz=0}cur.push(r);sz+=l});if(cur.length)gr.push(cur);var b=nid();return gr.map(function(g,i){return"KT1~"+JSON.stringify({f:from,b:b,k:i+1,n:gr.length,c:g})})}
 function showTr(chs,onClose,msg){
  var i=0,tm=null,play=chs.length>1,m=KC.modal('<b>'+((msg&&msg.t)||"Transfer QR")+'</b><div class="m" style="margin:4px 0">'+((msg&&msg.d)||"Your colleague opens <b>Receive cases</b> and points the camera at this. The cases are locked on your phone.")+'</div><div id="trq" style="max-width:340px;margin:8px auto"></div><div class="m" id="trn" style="text-align:center"></div><div class="row" data-nv><button class="b" data-tp style="flex:1">◀</button><button class="b" data-tpl style="flex:2"></button><button class="b" data-tn style="flex:1">▶</button></div><div class="row"><button class="b" data-tc style="flex:1">Copy code</button></div>',function(){clearInterval(tm);if(onClose)onClose()}),q=function(s){return m.el.querySelector(s)};
@@ -3174,7 +3222,7 @@ function trIn(t){
  if(b.got[d.k])return{have:Object.keys(b.got).length,n:b.n,done:false};
  var l=CAS(),now=Date.now();
  d.c.forEach(function(r){
-  var o={id:r[0],student:r[1],patient:r[2],age:r[3],gender:r[4],group:r[5],cli:r[6],bop:r[7],cc:r[8]||[],state:r[9],t0:r[10],dur:r[11],pt:r[12],p0:r[13],fromStart:true,xfrom:d.f,xat:now,ts:now};
+  var o={id:r[0],student:r[1],patient:r[2],age:r[3],gender:r[4],group:r[5],cli:r[6],bop:r[7],cc:r[8]||[],state:r[9],t0:r[10],dur:r[11],pt:r[12],p0:r[13],sess:r[14]||undefined,fromStart:true,xfrom:d.f,xat:now,ts:now};
   o.str=sstr(o);
   var k=l.findIndex(function(x){return x.id===o.id});
   if(k>=0){var cx=l[k];if(cx.state==="transferred"||cx.state==="none"){l[k]=o;b.add++}else b.skip++}
@@ -3214,10 +3262,10 @@ function syQrSend(){
  if(!all.length){toast("No graded cases to sync yet.");return}
  var gs={};all.forEach(function(c){gs[(c.group||"").trim()]=1});
  var IS='width:100%;box-sizing:border-box;padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;margin-top:3px;background:#fff;color:#111';
- var m=KC.modal('<b>Send graded cases by QR</b><label class="m" style="display:block;margin-top:8px">Date (DD/MM/YYYY · empty = all dates)</label><input data-gd type="text" inputmode="numeric" dir="ltr" lang="en" maxlength="10" placeholder="DD/MM/YYYY" style="'+IS+'"><label class="m" style="display:block;margin-top:8px">Group</label><select data-gg style="'+IS+'"><option value="*">All groups</option>'+Object.keys(gs).sort().map(function(g){return'<option value="'+esc(g)+'">'+(g?"Group "+esc(g):"(no group)")+'</option>'}).join("")+'</select><label class="m" style="display:block;margin-top:8px">Graded by</label><select data-go2 style="'+IS+'"><option value="mine">Only me</option><option value="all">All doctors</option></select><div class="m" data-gc style="margin:8px 0"></div><div class="row"><button class="b p" data-go style="flex:1">Show QR codes</button></div>'),q=function(s){return m.el.querySelector(s)};
+ var m=KC.modal('<b>Send graded cases by QR</b><label class="m" style="display:block;margin-top:8px">Date (empty = all dates)</label><input data-gd type="text" dir="ltr" lang="en" style="'+IS+'"><label class="m" style="display:block;margin-top:8px">Group</label><select data-gg style="'+IS+'"><option value="*">All groups</option>'+Object.keys(gs).sort().map(function(g){return'<option value="'+esc(g)+'">'+(g?"Group "+esc(g):"(no group)")+'</option>'}).join("")+'</select><label class="m" style="display:block;margin-top:8px">Graded by</label><select data-go2 style="'+IS+'"><option value="mine">Only me</option><option value="all">All doctors</option></select><div class="m" data-gc style="margin:8px 0"></div><div class="row"><button class="b p" data-go style="flex:1">Show QR codes</button></div>'),q=function(s){return m.el.querySelector(s)};
  function cur(){return{d:q("[data-gd]").value.trim(),g:q("[data-gg]").value,o:q("[data-go2]").value}}
  function cnt(){var s=cur(),n=gsel(s.d,s.g,s.o).length;q("[data-gc]").textContent=n+" case(s) will be sent"+(n>8?" in about "+Math.ceil(n/4)+" QR codes that change automatically.":".")}
- m.el.addEventListener("input",cnt);m.el.addEventListener("change",cnt);cnt();
+ calField(q("[data-gd]"));m.el.addEventListener("input",cnt);m.el.addEventListener("change",cnt);cnt();
  q("[data-go]").onclick=function(){var s=cur();if(s.d&&!/^\d\d\/\d\d\/\d{4}$/.test(s.d)){toast("Date must be DD/MM/YYYY.");return}
   var L=gsel(s.d,s.g,s.o);if(!L.length){toast("No graded cases match.");return}
   var a=active();m.close();showTr(sychunks(L.map(syPack),a?a.name:""),null,{t:"Sync QR · "+L.length+" case(s)",d:"Your colleague opens <b>Sync graded cases → Receive by QR</b> and points the camera here. The QR codes change by themselves; no one needs to tap anything."})}
@@ -3240,21 +3288,35 @@ function syScan(first){
   if(r.done)setTimeout(function(){syShow(r.rows,r.f)},250);
   return r.done},true);
 }
-function syShow(rows,from){
- var cs=CAS(),inc=rows.map(syUnpack),nw=[],have=0;
- inc.forEach(function(o){var l=cs.filter(function(x){return x.id===o.id})[0];
-  if(!l||(l.fn==null&&l.state!=="running"&&l.state!=="paused"&&l.state!=="grading"))nw.push(o);else have++});
- if(!nw.length){KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all '+inc.length+' case(s) received'+(from?" from Dr. "+esc(from):"")+'.</div>');return}
- var h='<b>New cases ('+nw.length+')</b><div class="m" style="margin:4px 0 6px">'+(from?"From Dr. "+esc(from)+". ":"")+(have?have+" already on your phone. ":"")+'These are not on your phone yet:</div><label style="display:block;padding:4px 0"><input type="checkbox" data-all checked> <b>Select all</b></label><div style="max-height:42vh;overflow:auto">';
- nw.forEach(function(o,i){h+='<label style="display:block;padding:6px 0;border-top:1px solid #eee"><input type="checkbox" data-nc="'+i+'" checked> <span dir="auto">'+esc(o.patient)+'</span> <b>· '+esc(o.fn)+'</b><div class="m" dir="auto" style="margin-left:22px">'+esc(o.student)+' · Group '+esc(o.group)+' · Dr. '+esc(o.doc)+'</div></label>'});
- h+='</div><div class="row"><button class="b p" data-add style="flex:1">Add selected</button></div>';
+function syShow(rows,from){syReview(rows.map(syUnpack),from)}
+function cfSide(c,lab,i,val,chk){var s=c.sc||[];return'<label style="flex:1;min-width:0;display:block;border:1px solid #ccc;border-radius:8px;padding:6px;font-size:13px"><span style="display:flex;align-items:center;gap:6px"><input type="radio" name="cf'+i+'" value="'+val+'"'+(chk?" checked":"")+' style="width:20px;height:20px;min-width:20px;margin:0;padding:0;flex:none"><b>'+lab+'</b></span><div dir="auto" style="margin-top:4px">Dr. '+esc(c.doc||"–")+'</div><div style="font-size:20px;font-weight:700">'+esc(c.fn)+'</div><div class="m">Sheet '+esc(s[0])+' · Motiv. '+esc(s[1])+' · Indices '+esc(s[2])+' · Diagn. '+esc(s[3])+' · Eval. '+esc(s[4])+'</div><div class="m">Infection '+esc(c.gr)+' · Calculus '+esc(c.cli)+' · Penalty '+esc(c.pen||0)+'</div><div class="m">Graded '+dmy(c.ts)+'</div></label>'}
+function syReview(inc,from){
+ var cs=CAS(),nw=[],cf=[],up=[],same=0,skip=0;
+ inc.forEach(function(o){
+  if(!o||o.fn==null||!o.id)return;
+  var l=cs.filter(function(x){return x.id===o.id})[0];
+  if(!l){nw.push(o);return}
+  if(l.fn==null){if(l.state==="running"||l.state==="paused"||l.state==="grading")skip++;else nw.push(o);return}
+  var sd=l.did&&o.did?l.did===o.did:l.doc===o.doc;
+  if(!sd)cf.push({a:l,b:o});else if((o.ts||0)>(l.ts||0))up.push(o);else same++;
+ });
+ if(!nw.length&&!cf.length&&!up.length){KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all the cases received'+(from?" from Dr. "+esc(from):"")+'.'+(skip?" ("+skip+" still ongoing here.)":"")+'</div>');return}
+ var h='<b>Received cases</b><div class="m" style="margin:4px 0 6px">'+(from?"From Dr. "+esc(from)+". ":"")+(same?same+" already on your phone. ":"")+(up.length?up.length+" newer version(s) of cases you already have will be updated. ":"")+'</div>';
+ if(cf.length){h+='<div style="margin-top:6px;padding:8px;border:2px solid #b45309;border-radius:10px;background:#fffbeb"><b style="color:#b45309">Same case, graded by different doctors ('+cf.length+')</b><div class="m" style="margin:2px 0 6px">Choose which grade to keep for each case.</div>';
+  cf.forEach(function(p,i){h+='<div style="margin-bottom:10px"><div dir="auto"><b>'+esc(p.a.patient)+'</b> <span class="m">· '+esc(p.a.student)+' · Group '+esc(p.a.group)+'</span></div><div style="display:flex;gap:6px;margin-top:4px">'+cfSide(p.a,"This phone",i,"mine",true)+cfSide(p.b,"Received",i,"theirs",false)+'</div></div>'});
+  h+='</div>'}
+ if(nw.length){h+='<div style="margin-top:10px"><b>New cases ('+nw.length+')</b></div><label style="display:block;padding:4px 0"><input type="checkbox" data-all checked style="width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle"> <b>Select all</b></label><div style="max-height:30vh;overflow:auto">';
+  nw.forEach(function(o,i){h+='<label style="display:block;padding:6px 0;border-top:1px solid #eee"><input type="checkbox" data-nc="'+i+'" checked style="width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle"><span dir="auto">'+esc(o.patient)+'</span> <b>· '+esc(o.fn)+'</b><div class="m" dir="auto" style="margin-left:26px">'+esc(o.student)+' · Group '+esc(o.group)+' · Dr. '+esc(o.doc)+'</div></label>'});
+  h+='</div>'}
+ h+='<div class="row"><button class="b p" data-add style="flex:1">Apply</button></div>';
  var m=KC.modal(h);
  m.el.addEventListener("change",function(e){if(e.target.hasAttribute("data-all"))m.el.querySelectorAll("[data-nc]").forEach(function(x){x.checked=e.target.checked})});
  m.el.querySelector("[data-add]").onclick=function(){
-  var pick=[].map.call(m.el.querySelectorAll("[data-nc]:checked"),function(x){return nw[+x.dataset.nc]});
-  if(!pick.length){toast("Select at least one case.");return}
-  var l=CAS();pick.forEach(function(o){var k=l.findIndex(function(x){return x.id===o.id});if(k>=0)l[k]=o;else l.push(o)});
-  sv("kc_cas",l);m.close();view();toast("Added "+pick.length+" case"+(pick.length>1?"s":"")+".")};
+  var l=CAS(),n=0,put=function(o){var k=l.findIndex(function(x){return x.id===o.id});if(k>=0)l[k]=o;else l.push(o)};
+  [].forEach.call(m.el.querySelectorAll("[data-nc]:checked"),function(x){put(nw[+x.dataset.nc]);n++});
+  up.forEach(function(o){put(o);n++});
+  cf.forEach(function(p,i){var r=m.el.querySelector('input[name="cf'+i+'"]:checked');if(r&&r.value==="theirs"){put(p.b);n++}});
+  sv("kc_cas",l);m.close();view();toast("Applied · "+n+" case"+(n===1?"":"s")+" added or updated.")};
 }
 function syncSend(){
  var cs=CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"});
@@ -3268,36 +3330,28 @@ function syncRecv(){
  i.onchange=function(){var f=i.files&&i.files[0];if(!f)return;var r=new FileReader();r.onload=function(){
   askPw("Receive graded cases","Sync",async function(pw){
    var d;try{d=await bkDec(pw,r.result)}catch(e){return"Wrong password, or this isn’t a sync file."}
-   var cs=CAS(),add=0,upd=0,same=0,skip=0,conf=0;
-   (d.cases||[]).forEach(function(c){
-    if(!c||c.fn==null||!c.id)return;
-    var k=cs.findIndex(function(x){return x.id===c.id});
-    if(k<0){cs.push(c);add++;return}
-    var o=cs[k];
-    if(o.fn==null){if(o.state==="running"||o.state==="paused"||o.state==="grading"){skip++;return}cs[k]=c;upd++;return}
-    var sd=o.did&&c.did?o.did===c.did:o.doc===c.doc;
-    if(!sd){conf++;return}
-    if((c.ts||0)>(o.ts||0)){cs[k]=c;upd++}else same++;
-   });
-   sv("kc_cas",cs);view();
-   toast("Synced: "+add+" new · "+upd+" updated · "+same+" already up to date"+(skip?" · "+skip+" still ongoing here":"")+(conf?" · "+conf+" graded by two doctors (kept yours)":"")+".");return""})};
+   setTimeout(function(){syReview(d.cases||[],"")},200);return""})};
   r.readAsText(f)};
  i.click();
 }
 /* ---- grades PDF ---- */
-function gsel(d,g,o){return CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"&&(!d||dmy(c.ts)===d)&&(g==="*"||(c.group||"").trim()===g)&&(o!=="mine"||own(c))}).sort(function(a,b){return String(a.group||"").localeCompare(String(b.group||""))||String(a.student||"").localeCompare(String(b.student||""))})}
+function gsel(d,g,o){return CAS().filter(function(c){if(c.fn==null||c.state==="transferred")return false;if(d&&dmy(c.ts)!==d)return false;if(g!=="*"&&(c.group||"").trim()!==g)return false;if(o==="mine")return own(c);if(Array.isArray(o))return o.indexOf(c.doc||"")>=0;return true}).sort(function(a,b){return String(a.group||"").localeCompare(String(b.group||""))||String(a.student||"").localeCompare(String(b.student||""))})}
+function docNames(){var m={};CAS().forEach(function(c){if(c.fn!=null&&c.state!=="transferred"&&c.doc)m[c.doc]=1});return Object.keys(m).sort()}
+function calField(el){el.readOnly=true;el.style.cursor="pointer";el.placeholder="Tap to pick a date";el.addEventListener("click",function(){var v=el.value.trim(),iso=/^\d\d\/\d\d\/\d{4}$/.test(v)?v.split("/").reverse().join("-"):"";KC.calPick(iso,function(x){el.value=x?x.split("-").reverse().join("/"):"";el.dispatchEvent(new Event("input",{bubbles:true}))})})}
 function gradesUI(){
- var all=CAS().filter(function(c){return c.fn!=null});
+ var all=CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"});
  if(!all.length){toast("No graded cases yet.");return}
  var gs={};all.forEach(function(c){gs[(c.group||"").trim()]=1});
- var IS='width:100%;box-sizing:border-box;padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;margin-top:3px;background:#fff;color:#111';
- var h='<b>Export grades (PDF)</b><div class="m" style="margin:6px 0 4px">A neat table to copy the grades by hand.</div><label class="m">Date (DD/MM/YYYY · empty = all dates)</label><input data-gd type="text" inputmode="numeric" dir="ltr" lang="en" maxlength="10" placeholder="DD/MM/YYYY" value="'+dmy(Date.now())+'" style="'+IS+'"><label class="m" style="display:block;margin-top:8px">Group</label><select data-gg style="'+IS+'"><option value="*">All groups</option>'+Object.keys(gs).sort().map(function(g){return'<option value="'+esc(g)+'">'+(g?"Group "+esc(g):"(no group)")+'</option>'}).join("")+'</select><label class="m" style="display:block;margin-top:8px">Graded by</label><select data-go2 style="'+IS+'"><option value="all">All doctors</option><option value="mine">Only me</option></select><label style="display:flex;align-items:center;gap:10px;margin-top:12px"><input type="checkbox" data-gb checked style="width:22px;height:22px;min-width:22px;margin:0;padding:0;flex:none"><span>Bundle these cases after export <span class="m">(named with group + date)</span></span></label><div class="m" data-gc style="margin-top:8px"></div><div class="row"><button class="b p" data-ge style="flex:1">Export PDF</button></div>';
+ var dn=docNames(),IS='width:100%;box-sizing:border-box;padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;margin-top:3px;background:#fff;color:#111';
+ var dh=dn.length?'<div class="m" style="margin-top:8px">Graded by</div>'+dn.map(function(d){return'<label style="display:flex;align-items:center;gap:10px;padding:5px 0"><input type="checkbox" data-gdoc value="'+esc(d)+'" checked style="width:22px;height:22px;min-width:22px;margin:0;padding:0;flex:none"><span dir="auto">Dr. '+esc(d)+'</span></label>'}).join(""):"";
+ var h='<b>Export grades (PDF)</b><div class="m" style="margin:6px 0 4px">A neat table to copy the grades by hand.</div><label class="m">Date (empty = all dates)</label><input data-gd type="text" dir="ltr" lang="en" value="'+dmy(Date.now())+'" style="'+IS+'"><label class="m" style="display:block;margin-top:8px">Group</label><select data-gg style="'+IS+'"><option value="*">All groups</option>'+Object.keys(gs).sort().map(function(g){return'<option value="'+esc(g)+'">'+(g?"Group "+esc(g):"(no group)")+'</option>'}).join("")+'</select>'+dh+'<label style="display:flex;align-items:center;gap:10px;margin-top:12px"><input type="checkbox" data-gb checked style="width:22px;height:22px;min-width:22px;margin:0;padding:0;flex:none"><span>Bundle these cases after export <span class="m">(named with group + date)</span></span></label><div class="m" data-gc style="margin-top:8px"></div><div class="row"><button class="b p" data-ge style="flex:1">Export PDF</button></div>';
  var m=KC.modal(h),q=function(s){return m.el.querySelector(s)};
- function cur(){return{d:q("[data-gd]").value.trim(),g:q("[data-gg]").value,o:q("[data-go2]").value}}
+ calField(q("[data-gd]"));
+ function cur(){var o="all";if(dn.length)o=[].map.call(m.el.querySelectorAll("[data-gdoc]:checked"),function(x){return x.value});return{d:q("[data-gd]").value.trim(),g:q("[data-gg]").value,o:o}}
  function cnt(){var s=cur();q("[data-gc]").textContent=gsel(s.d,s.g,s.o).length+" case(s) match."}
  m.el.addEventListener("input",cnt);m.el.addEventListener("change",cnt);cnt();
  q("[data-ge]").onclick=async function(){
-  var s=cur();if(s.d&&!/^\d\d\/\d\d\/\d{4}$/.test(s.d)){toast("Date must be DD/MM/YYYY.");return}
+  var s=cur();
   var L=gsel(s.d,s.g,s.o);if(!L.length){toast("No graded cases match.");return}
   var lab=(s.g==="*"?"All groups":s.g?"Group "+s.g:"No group")+" · "+(s.d||"All dates"),bun=q("[data-gb]").checked;m.close();toast("Preparing PDF…");
   try{await saveBlob(await gradesPdf(L,lab),"grades-"+lab.replace(/[^\w\u0600-\u06FF]+/g,"_")+"-"+ymd()+".pdf");
