@@ -2759,7 +2759,7 @@ function startStr(o){return["KC2",o.id,cl(o.student),cl(o.patient),cl(o.age),o.g
 function parseStart(t){var p=String(t).split("|");if(p[0]!=="KC2"||p.length!==10)return null;return{id:p[1],student:p[2],patient:p[3],age:p[4],gender:p[5],group:p[6],cli:p[7],bop:p[8],cc:p[9]?p[9].split(",").map(Number).filter(function(i){return CCL[i]}).map(function(i){return CCL[i]}):[]}}
 function parseCase(t){var p=String(t).split("|");if(p[0]!=="KC1"||p.length!==9)return null;return{id:p[1],student:p[2],patient:p[3],age:p[4],gender:p[5],group:p[6],cli:p[7],bop:p[8],str:t}}
 async function key(code,cs,doc,id){var m=await crypto.subtle.importKey("raw",te.encode(String(code).toUpperCase()+"|"+cs+"|"+doc),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt:te.encode(id),iterations:120000,hash:"SHA-256"},m,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
-function msg(cs,P,doc){return te.encode(cs+"|"+P.sc.join(",")+"|"+P.gr+"|"+P.fn+"|"+doc+(P.tk===undefined&&P.pn===undefined?"":"|"+P.tk+"|"+P.pn+"|"+P.lm))}
+function msg(cs,P,doc){return te.encode(cs+"|"+P.sc.join(",")+"|"+P.gr+"|"+P.fn+"|"+doc+(P.tk===undefined&&P.pn===undefined?"":"|"+P.tk+"|"+P.pn+"|"+P.lm)+(P.ex>0?"|x"+P.ex+"|a"+P.at:""))}
 async function seal(cs,id,doc,P,code,priv){
  P.sn=b64(new Uint8Array(await crypto.subtle.sign(SG,priv,msg(cs,P,doc))));
  var iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},await key(code,cs,doc,id),te.encode(JSON.stringify(P)))),all=new Uint8Array(12+ct.length);
@@ -2772,7 +2772,29 @@ async function newKeys(){var k=await crypto.subtle.generateKey(EC,true,["sign","
 function importPriv(j){return crypto.subtle.importKey("jwk",j,EC,false,["sign"])}
 function sigEnc(strokes,W,H){var n=0;strokes.forEach(function(s){n+=s.length});var st=Math.max(1,Math.ceil(n/150));
  return strokes.map(function(s){var o="";s.forEach(function(p,i){if(i%st&&i!==s.length-1)return;o+=AL[Math.min(63,Math.round(p[0]/W*63))]+AL[Math.min(31,Math.round(p[1]/H*31))]});return o}).filter(Boolean).join("~")}
-function sigSvg(sg){if(!sg)return"";var d=sg.split("~").map(function(s){var p=[];for(var i=0;i<s.length;i+=2)p.push(AL.indexOf(s[i])+" "+AL.indexOf(s[i+1]));return"M"+p.join("L")+(p.length===1?"L"+p[0]:"")}).join("");
+function sigEnc2(st){return"2:"+st.map(function(s){var o="";s.forEach(function(p){var x=Math.max(0,Math.min(127,Math.round(p[0]))),y=Math.max(0,Math.min(63,Math.round(p[1])));o+=AL[x>>6]+AL[x&63]+AL[y]});return o}).filter(Boolean).join("~")}
+function sigEnc3(st){return"3:"+st.map(function(s){var o="";s.forEach(function(p){
+ var xi=Math.max(0,Math.min(511,Math.round(p[0]*4))),yi=Math.max(0,Math.min(255,Math.round(p[1]*4))),wi=Math.max(0,Math.min(31,Math.round((p[2]-.4)/.1))),n=xi*8192+yi*32+wi;
+ o+=AL[(n>>18)&63]+AL[(n>>12)&63]+AL[(n>>6)&63]+AL[n&63]});return o}).filter(Boolean).join("~")}
+function sigPts3(sg){return sg.slice(2).split("~").map(function(s){var p=[];for(var i=0;i+3<s.length;i+=4){var n=(AL.indexOf(s[i])<<18)|(AL.indexOf(s[i+1])<<12)|(AL.indexOf(s[i+2])<<6)|AL.indexOf(s[i+3]);p.push([(n>>13&511)/4,(n>>5&255)/4,(n&31)*.1+.4])}return p}).filter(function(p){return p.length})}
+/* centripetal Catmull-Rom through the points, widths interpolated */
+function sigCurve(p){if(p.length<3)return p;var o=[],n=p.length,i,j,k=6;
+ for(i=0;i<n-1;i++){var a=p[Math.max(0,i-1)],b=p[i],c=p[i+1],d=p[Math.min(n-1,i+2)],
+  t0=0,t1=t0+Math.pow(Math.hypot(b[0]-a[0],b[1]-a[1])||1e-3,.5),t2=t1+Math.pow(Math.hypot(c[0]-b[0],c[1]-b[1])||1e-3,.5),t3=t2+Math.pow(Math.hypot(d[0]-c[0],d[1]-c[1])||1e-3,.5);
+  for(j=0;j<k;j++){var t=t1+(t2-t1)*j/k,r=[0,0,b[2]+(c[2]-b[2])*j/k];
+   for(var m=0;m<2;m++){var A1=(t1-t)/(t1-t0)*a[m]+(t-t0)/(t1-t0)*b[m],A2=(t2-t)/(t2-t1)*b[m]+(t-t1)/(t2-t1)*c[m],A3=(t3-t)/(t3-t2)*c[m]+(t-t2)/(t3-t2)*d[m],
+    B1=(t2-t)/(t2-t0)*A1+(t-t0)/(t2-t0)*A2,B2=(t3-t)/(t3-t1)*A2+(t-t1)/(t3-t1)*A3;r[m]=(t2-t)/(t2-t1)*B1+(t-t1)/(t2-t1)*B2}
+   o.push(r)}}
+ o.push(p[n-1]);return o}
+function sigSvg3(sg){var G={},z=function(v){return Math.round(v*20)/20};
+ sigPts3(sg).forEach(function(s){var q=sigCurve(s);if(q.length===1)q=[q[0],[q[0][0]+.01,q[0][1],q[0][2]]];
+  for(var i=0;i<q.length-1;i++){var w=(q[i][2]+q[i+1][2])/2,lv=Math.max(0,Math.round((w-.4)/.2)),g=G[lv]=G[lv]||[],ls=g.length?g[g.length-1]:null,a=z(q[i][0])+" "+z(q[i][1]),b=z(q[i+1][0])+" "+z(q[i+1][1]);
+   if(ls&&ls.e===a&&ls.l===lv&&ls.s===s){ls.d+="L"+b;ls.e=b}else g.push({d:"M"+a+"L"+b,e:b,l:lv,s:s})}});
+ var h="";Object.keys(G).forEach(function(lv){h+='<path stroke-width="'+(lv*.2+.4).toFixed(1)+'" d="'+G[lv].map(function(x){return x.d}).join("")+'"/>'});
+ return'<svg xmlns="http://www.w3.org/2000/svg" width="340" height="180" viewBox="-3 -3 134 70"><g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round">'+h+'</g></svg>'}
+function sigSvg(sg){if(!sg)return"";if(sg.slice(0,2)==="3:")return sigSvg3(sg);
+ if(sg.slice(0,2)==="2:"){var d2=sg.slice(2).split("~").map(function(s){var p=[];for(var i=0;i+2<s.length;i+=3)p.push((AL.indexOf(s[i])*64+AL.indexOf(s[i+1]))+" "+AL.indexOf(s[i+2]));return p.length?"M"+p.join("L")+(p.length===1?"L"+p[0]:""):""}).join("");return'<svg xmlns="http://www.w3.org/2000/svg" width="340" height="180" viewBox="-3 -3 134 70"><path d="'+d2+'" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'}
+var d=sg.split("~").map(function(s){var p=[];for(var i=0;i<s.length;i+=2)p.push(AL.indexOf(s[i])+" "+AL.indexOf(s[i+1]));return"M"+p.join("L")+(p.length===1?"L"+p[0]:"")}).join("");
  return'<svg xmlns="http://www.w3.org/2000/svg" width="340" height="180" viewBox="-2 -2 68 36"><path d="'+d+'" fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'}
 function sigPng(sg,cb){var i=new Image();i.onload=function(){var c=document.createElement("canvas");c.width=340;c.height=180;c.getContext("2d").drawImage(i,0,0,340,180);cb(c.toDataURL("image/png"))};i.onerror=function(){cb(null)};i.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(sigSvg(sg))}
 function qrSvg(t,ec){qrcode.stringToBytes=function(s){return Array.from(te.encode(s))};var q=qrcode(0,ec||"M");q.addData(t,"Byte");q.make();var n=q.getModuleCount(),d="",r,c;
@@ -2816,7 +2838,7 @@ function scan(cb,keep){var seen={},alive=true,stream=null,bd=window.BarcodeDetec
  function loop(){if(!alive)return;if(v.videoWidth){var t=dec(v,v.videoWidth,v.videoHeight,false);if(t){if(!keep)return done(t);done(t)}}setTimeout(loop,120)}
  function fail(e){st.textContent=(e&&e.name==="NotAllowedError"?"This page isn’t allowed to use the camera here. ":"Live camera isn’t available. ")+"Use “Take photo” below."}
  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(s){if(!alive){s.getTracks().forEach(function(t){t.stop()});return}stream=s;v.srcObject=s;v.play();st.textContent="Point the camera at the QR code.";loop()}).catch(fail);else fail()}
-return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan,calPick:calPick}
+return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan,calPick:calPick,sigEnc2:sigEnc2,sigEnc3:sigEnc3}
 })();
 var KL=(function(){
 var S0=function(){return{q:"",f:{},sort:"time",dir:-1,sel:{},mode:false,open:false,bundle:"",vis:[]}},STS={cases:S0(),folders:S0()},st=STS.cases,ctx,bar,list;
@@ -2959,7 +2981,7 @@ var N=["Case sheet","Motivation + instruction","Indices (BOP + CLI)","Diagnosis"
 function getCase(id){return CAS().filter(function(x){return x.id===id})[0]}
 function vCases(){
  var a=active();
- return '<div class="card"><div class="m">'+(a?'Signed in as <b>Dr. '+esc(a.name)+'</b>':'Create a supervisor account first (Account tab).')+'</div><div class="row"><button class="b p" data-a="scan" style="flex:1">Scan student QR</button></div><div class="row"><button class="b" data-a="stopall" style="flex:1">Stop all timers</button><button class="b" data-a="resumeall" style="flex:1">Resume all</button></div><div class="row"><button class="b" data-a="trsend" style="flex:1">Transfer cases</button><button class="b" data-a="trrecv" style="flex:1">Receive cases</button></div><div class="row"><button class="b" data-a="sync" style="flex:1">Sync graded cases</button><button class="b" data-a="gpdf" style="flex:1">Grades PDF</button></div><div class="m" id="runc" style="margin-top:6px"></div></div><div id="kbar"></div><div id="klist"></div>';
+ return oldBanner()+'<div class="card"><div class="m">'+(a?'Signed in as <b>Dr. '+esc(a.name)+'</b>':'Create a supervisor account first (Account tab).')+'</div><div class="row"><button class="b p" data-a="scan" style="flex:1">Scan student QR</button></div><div class="row"><button class="b" data-a="stopall" style="flex:1">Stop all timers</button><button class="b" data-a="resumeall" style="flex:1">Resume all</button></div><div class="row"><button class="b" data-a="trsend" style="flex:1">Transfer cases</button><button class="b" data-a="trrecv" style="flex:1">Receive cases</button></div><div class="row"><button class="b" data-a="sync" style="flex:1">Sync graded cases</button><button class="b" data-a="gpdf" style="flex:1">Grades PDF</button></div><div class="m" id="runc" style="margin-top:6px"></div></div><div id="kbar"></div><div id="klist"></div>';
 }
 function items(){return CAS().map(function(c){return{id:c.id,name:c.patient,student:c.student,group:c.group||"",age:parseFloat(c.age),gender:c.gender,bop:parseFloat(c.bop),cli:parseFloat(c.cli),score:c.fn!=null?c.fn:null,doc:c.doc||"",date:c.ts,saved:c.ts}})}
 function renderList(){
@@ -2972,7 +2994,7 @@ function renderList(){
   if(st==="paused")bt+='<button class="b" data-a="resume" data-id="'+c.id+'">Resume</button>';
   if(c.fromStart&&c.t0==null&&st!=="done")bt+='<button class="b p" data-a="tstart" data-id="'+c.id+'">Start timer</button>';
   h+='<div class="card">'+KL.chk(c.id)+'<b dir="auto">'+esc(c.patient)+'</b> <span class="m">· '+esc(c.age)+' · '+esc(c.gender)+'</span><div class="m" dir="auto">Student: '+esc(c.student)+' · Group '+esc(c.group)+(c.cli!==""&&c.cli!=null?' · CLI '+esc(c.cli)+' · BOP '+esc(c.bop)+'%':"")+'</div>'+(c.cc&&c.cc.length?'<div class="m" dir="auto">Chief complaint: '+esc(c.cc.join(", "))+'</div>':"")+tm+
-  (c.fn!=null?'<div style="margin-top:4px"><b>Final: '+c.fn+'</b> <span class="m">by Dr. '+esc(c.doc)+'</span></div>':'<div class="m" style="margin-top:4px">Not scored yet</div>')+
+  (c.fn!=null?'<div style="margin-top:4px"><b>Final: '+c.fn+(c.ex>0?" ⭐":"")+'</b> <span class="m">by Dr. '+esc(c.doc)+'</span></div>'+(c.ex>0?'<div class="m" style="color:#92400e">⭐ Includes +'+c.ex+' extra score</div>':"")+(oldSig(c)?'<div class="m" style="color:#b45309">⚠ Graded with your old signature · re-share to update</div>':""):'<div class="m" style="margin-top:4px">Not scored yet</div>')+
   '<div class="row">'+bt+(own(c)?'<button class="b p" data-a="open" data-id="'+c.id+'">'+(c.fn!=null?"Edit score":act?"Grade":"Score")+'</button>'+(c.fn!=null?'<button class="b" data-a="share" data-id="'+c.id+'">Share</button>':""):'<span class="m">Read only · graded by another doctor</span>')+'<button class="b d" data-a="del" data-id="'+c.id+'">Delete</button></div></div>'});
  $("#klist").innerHTML=h||'<div class="card m">'+(all.length?"No matching cases.":"No cases yet. Scan a student’s QR code to start.")+'</div>';
  KL.status(all.length,vis);
@@ -2981,8 +3003,8 @@ function getB(){return ld("kc_bun",[])}
 function setB(a){sv("kc_bun",a)}
 function vAcc(){
  var A=ACC(),a=active(),h="";
- A.forEach(function(x){h+='<div class="card"><div class="row" style="margin-top:0"><b style="flex:1" dir="auto">Dr. '+esc(x.name)+(a&&a.id===x.id?' <span class="m">· active</span>':"")+'</b><button class="b" data-a="use" data-id="'+x.id+'">Use</button><button class="b d" data-a="dacc" data-id="'+x.id+'">Delete</button></div><div class="sg">'+KC.sigSvg(x.sg).replace('width="340" height="180"','')+'</div><div class="m">Key ID '+esc(x.fp)+'</div></div>'});
- return h+'<div class="card"><b>New supervisor account</b><input id="an" dir="auto" placeholder="Doctor name" style="margin-top:8px"><div class="m" style="margin-top:8px">Draw your signature</div><canvas id="sg" width="256" height="96"></canvas><div class="row"><button class="b" data-a="sgc">Clear</button><button class="b p" data-a="acc" style="flex:1">Create account</button></div></div>';
+ A.forEach(function(x){h+='<div class="card"><div class="row" style="margin-top:0"><b style="flex:1" dir="auto">Dr. '+esc(x.name)+(a&&a.id===x.id?' <span class="m">· active</span>':"")+'</b><button class="b" data-a="use" data-id="'+x.id+'">Use</button><button class="b d" data-a="dacc" data-id="'+x.id+'">Delete</button></div><div class="sg" style="aspect-ratio:2/1;max-width:300px;border:1px solid #bbb;background:#fff;margin:8px 0">'+KC.sigSvg(x.sg).replace('width="340" height="180"','')+'</div><div class="m">Key ID '+esc(x.fp)+'</div><div class="row"><button class="b" data-a="sgchg" data-id="'+x.id+'">Change signature</button></div></div>'});
+ return h+'<div class="card"><b>New supervisor account</b><input id="an" dir="auto" placeholder="Doctor name" value="'+esc(NEWNM)+'" style="margin-top:8px"><div class="m" style="margin-top:8px">Signature</div><div class="sg" style="aspect-ratio:2/1;max-width:300px;border:1px solid #bbb;background:#fff;margin:4px 0'+(NEWSG?'':';display:flex;align-items:center;justify-content:center')+'">'+(NEWSG?KC.sigSvg(NEWSG).replace('width="340" height="180"',''):'<div class="m" style="text-align:center">Not set yet</div>')+'</div><div class="row"><button class="b" data-a="sgset">'+(NEWSG?"Change signature":"Set signature (draw or photo)")+'</button><button class="b p" data-a="acc" style="flex:1">Create account</button></div></div><div class="card"><b>About</b><div class="m" style="margin:4px 0">Perio Supervisor · version '+APP_VER+'</div><div class="row"><button class="b" data-a="upd">Check for updates</button></div></div>';
 }
 function ymd(){var t=new Date();return t.getFullYear()+"-"+("0"+(t.getMonth()+1)).slice(-2)+"-"+("0"+t.getDate()).slice(-2)}
 function vBackup(){var l=ld("kc_last",null);
@@ -3005,10 +3027,10 @@ function pad(){
 async function mkAcc(){
  var nm=($("#an").value||"").trim();
  if(!nm){toast("Enter your name.");return}
- if(!strokes.length){toast("Draw your signature.");return}
+ if(!NEWSG){toast("Set your signature first.");return}
  var k=await KC.newKeys(),A=ACC(),id=KC.rid();
- A.push({id:id,name:nm,sg:KC.sigEnc(strokes,256,96),pub:k.pub,priv:k.priv,fp:await KC.fp(k.pub)});
- sv("kc_acc",A);sv("kc_act",id);toast("Account created.");view();
+ A.push({id:id,name:nm,sg:NEWSG,sgv:nid(),pub:k.pub,priv:k.priv,fp:await KC.fp(k.pub)});
+ NEWSG="";NEWNM="";sv("kc_acc",A);sv("kc_act",id);toast("Account created.");view();
 }
 function sstr(s){return KC.caseStr({id:s.id,student:s.student,patient:s.patient,age:s.age,gender:s.gender,group:s.group,cli:s.cli,bop:s.bop})}
 function putCase(c){var l=CAS(),i=l.findIndex(function(x){return x.id===c.id});if(i>=0)l[i]=c;else l.push(c);sv("kc_cas",l)}
@@ -3034,23 +3056,25 @@ var SESS=[[10,30,"10:30 AM"],[12,30,"12:30 PM"],[14,30,"2:30 PM"]];
 function sessEnd(s,now){var d=new Date(now);d.setHours(s[0],s[1],0,0);return d.getTime()}
 function sessNext(now){for(var i=0;i<SESS.length;i++)if(sessEnd(SESS[i],now)-now>=60000)return i;return -1}
 function startTimer(id){
- var c=getCase(id);if(!c)return;var dur=ld("kc_dur",120),sel=sessNext(Date.now()),tabv=sel>=0?"cd":"sw",tm=null;
- var sb=SESS.map(function(s,i){return'<button class="b" data-s="'+i+'" style="flex:1;padding:12px 4px;font-size:16px">'+s[2]+'</button>'}).join("");
- var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div class="row" style="margin:0 0 10px"><button class="b" data-tab="cd" style="flex:1">Countdown</button><button class="b" data-tab="sw" style="flex:1">Duration</button></div><div data-pcd><div class="m" style="margin-bottom:6px">Count down to:</div><div class="row" style="margin:0">'+sb+'</div><div data-pv style="margin-top:10px;font-size:16px"></div></div><div data-psw style="display:none"><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.round(dur%60)+'"></div></div><div class="row"><button class="b p" data-go style="flex:1">Start timer</button></div>',function(){clearInterval(tm)}),q=function(s){return m.el.querySelector(s)};
+ var c=getCase(id);if(!c)return;var dur=ld("kc_dur",120),now0=Date.now(),sel=sessNext(now0),tabv="cd",tm=null;if(sel<0)sel=3;
+ var dn=new Date(now0+30*60000);dn.setMinutes(dn.getMinutes()<30?30:60,0,0);var dh=dn.getHours(),dmn=dn.getMinutes();
+ var sb=SESS.map(function(s,i){return'<button class="b" data-s="'+i+'" style="flex:1;padding:12px 2px;font-size:15px">'+s[2]+'</button>'}).join("")+'<button class="b" data-s="3" style="flex:1;padding:12px 2px;font-size:15px">Custom</button>';
+ var SL='padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:16px;background:#fff;color:#111;flex:1;min-width:0',ho="",mo="";for(var i=1;i<=12;i++)ho+='<option'+(i===((dh%12)||12)?" selected":"")+'>'+i+'</option>';for(i=0;i<60;i++)mo+='<option value="'+i+'"'+(i===dmn?" selected":"")+'>'+("0"+i).slice(-2)+'</option>';
+ var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div class="row" style="margin:0 0 10px"><button class="b" data-tab="cd" style="flex:1">Countdown</button><button class="b" data-tab="sw" style="flex:1">Duration</button></div><div data-pcd><div class="m" style="margin-bottom:6px">Count down to:</div><div class="row" style="margin:0;gap:5px">'+sb+'</div><div data-cu style="display:none;margin-top:8px"><div class="row" style="margin:0;gap:6px"><select data-ch style="'+SL+'">'+ho+'</select><b>:</b><select data-cm style="'+SL+'">'+mo+'</select><select data-cap style="'+SL+'"><option'+(dh<12?" selected":"")+'>AM</option><option'+(dh>=12?" selected":"")+'>PM</option></select></div></div><div data-pv style="margin-top:10px;font-size:16px"></div></div><div data-psw style="display:none"><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.round(dur%60)+'"></div></div><div class="row"><button class="b p" data-go style="flex:1">Start timer</button></div>',function(){clearInterval(tm)}),q=function(s){return m.el.querySelector(s)};
+ function SG(i){if(i<3)return SESS[i];var h12=+q("[data-ch]").value,mm=+q("[data-cm]").value,ap=q("[data-cap]").value;return[h12%12+(ap==="PM"?12:0),mm,h12+":"+("0"+mm).slice(-2)+" "+ap]}
  function upd(){var now=Date.now();
-  if(sel>=0&&sessEnd(SESS[sel],now)-now<60000)sel=sessNext(now);
-  [].forEach.call(m.el.querySelectorAll("[data-s]"),function(b){var i=+b.dataset.s,past=sessEnd(SESS[i],now)-now<60000;b.disabled=past;b.style.opacity=past?".4":"1";b.className=(i===sel?"b p":"b")});
+  [].forEach.call(m.el.querySelectorAll("[data-s]"),function(b){var i=+b.dataset.s,past=i<3&&sessEnd(SESS[i],now)-now<60000;b.disabled=past;b.style.opacity=past?".4":"1";b.className=(i===sel?"b p":"b")});
   [].forEach.call(m.el.querySelectorAll("[data-tab]"),function(b){b.className=b.dataset.tab===tabv?"b p":"b"});
-  q("[data-pcd]").style.display=tabv==="cd"?"":"none";q("[data-psw]").style.display=tabv==="sw"?"":"none";
-  var pv=q("[data-pv]");
-  if(sel<0)pv.innerHTML='<span class="m">All of today’s session times have passed. Use the Duration tab.</span>';
-  else pv.innerHTML='Ends at <b>'+SESS[sel][2]+'</b> · remaining <b>'+fmtT(sessEnd(SESS[sel],now)-now)+'</b>'}
+  q("[data-pcd]").style.display=tabv==="cd"?"":"none";q("[data-psw]").style.display=tabv==="sw"?"":"none";q("[data-cu]").style.display=sel===3?"":"none";
+  var pv=q("[data-pv]"),s=SG(sel),left=sessEnd(s,now)-now;
+  pv.innerHTML=left<60000?'<span class="no">That time has already passed today. Pick a later one.</span>':'Ends at <b>'+s[2]+'</b> · remaining <b>'+fmtT(left)+'</b>'}
  m.el.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;
   if(b.dataset.tab){tabv=b.dataset.tab;upd();return}
   if(b.dataset.s!=null&&!b.disabled){sel=+b.dataset.s;upd()}});
+ m.el.addEventListener("change",upd);
  q("[data-go]").onclick=function(){
   var now=Date.now(),mins,sess="";
-  if(tabv==="cd"){if(sel<0){toast("No session time left today. Use the Duration tab.");return}var end=sessEnd(SESS[sel],now);if(end-now<60000){toast("Pick a later time.");return}mins=Math.round((end-now)/1000)/60;sess=SESS[sel][2]}
+  if(tabv==="cd"){var s=SG(sel),end=sessEnd(s,now);if(end-now<60000){toast("That time has passed. Pick a later one.");return}mins=Math.round((end-now)/1000)/60;sess=s[2]}
   else{mins=(parseInt(q("#th").value)||0)*60+(parseInt(q("#tn").value)||0);if(mins<1){toast("Set a time limit of at least 1 minute.");return}sv("kc_dur",mins)}
   var c2=getCase(id);Object.assign(c2,{state:"running",t0:now,dur:mins,pt:0,p0:null});if(sess)c2.sess=sess;else delete c2.sess;
   putCase(c2);clearInterval(tm);m.close();view();toast("Timer started."+(sess?" Counting down to "+sess+".":""))};
@@ -3065,19 +3089,19 @@ function editor(id){
  if(timed)h+='<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;background:#f6f6f2"><b>⏱ Time</b><div>Taken <b>'+fmtT(el)+'</b> · limit '+fmtT(lim)+'</div><div class="'+(om?"no":"ok")+'">'+(om?"Over by "+om+" min":"Within the limit")+'</div><div class="sc"><label><input type="checkbox" id="pa" style="width:auto"'+(pOn?" checked":"")+'> Apply penalty</label><span></span></div><div class="sc"><label>Penalty per minute</label><input id="pr" type="text" dir="ltr" lang="en" step="0.1" min="0" value="'+rate+'"></div><div class="sc"><label>Penalty (points)</label><input id="pp" type="text" dir="ltr" lang="en" step="0.1" min="0" value="'+pen0+'"></div></div>';
  h+='<div class="sc"><label>BOP %'+(ro?' <span class="m">(from the start QR)</span>':'')+'</label><input id="kb" type="text" dir="ltr" lang="en" inputmode="decimal" step="0.1"'+(ro?" readonly":"")+' value="'+(c.bop!==""&&c.bop!=null?esc(c.bop):"")+'"></div><div class="sc"><label>Calculus score</label><input id="kc" type="text" dir="ltr" lang="en" inputmode="decimal" step="0.1"'+(ro?" readonly":"")+' value="'+(c.cli!==""&&c.cli!=null?esc(c.cli):"")+'"></div>'+(ro?"":'<div class="row"><button class="b" data-sq style="flex:1">Scan the student’s QR to fill these</button></div>');
  N.forEach(function(n,i){h+='<div class="sc"><label>'+n+' <span class="m">/ '+M[i]+'</span></label><input type="text" dir="ltr" lang="en" inputmode="decimal" min="0" max="'+M[i]+'" data-i="'+i+'" value="'+(c.sc?c.sc[i]:"")+'"></div>'});
- h+='<div class="sc"><label>Infection control &amp; behavior <span class="m">/ 5</span></label><input type="text" dir="ltr" lang="en" inputmode="decimal" min="0" max="5" data-i="g" value="'+(c.gr!=null?c.gr:"")+'"></div><div id="fin" class="m" style="margin-top:8px"></div><div class="row"><button class="b p" data-s="1" style="flex:1">Save</button><button class="b p" data-s="2" style="flex:1">Save &amp; share</button></div>';
+ h+='<div class="sc"><label>Infection control &amp; behavior <span class="m">/ 5</span></label><input type="text" dir="ltr" lang="en" inputmode="decimal" min="0" max="5" data-i="g" value="'+(c.gr!=null?c.gr:"")+'"></div><div class="sc" style="margin-top:10px;padding:8px;border:2px solid #f59e0b;border-radius:10px;background:#fffbeb"><label style="color:#92400e;font-weight:700">⭐ Extra score <span class="m">(optional reward, no limit)</span></label><input id="ex" type="text" dir="ltr" lang="en" inputmode="decimal" placeholder="0" value="'+(c.ex>0?c.ex:"")+'" style="border-color:#f59e0b"></div><div id="fin" class="m" style="margin-top:8px"></div><div class="row"><button class="b p" data-s="1" style="flex:1">Save</button><button class="b p" data-s="2" style="flex:1">Save &amp; share</button></div>';
  var m=KC.modal(h,function(){if(saved)return;var c2=getCase(id);if(c2&&c2.state==="grading"){if(c2.prev==="running"){c2.pt=(c2.pt||0)+(Date.now()-c2.p0);c2.p0=null;c2.state="running"}else c2.state="paused";putCase(c2);view()}}),e=m.el,q=function(s){return e.querySelector(s)};
  (function(){var H=window.innerHeight,bx=e.firstChild;e.style.alignItems="flex-start";e.style.paddingTop=Math.round(H*.06)+"px";e.style.paddingBottom="0";bx.style.maxHeight=Math.round(H*.61)+"px";bx.style.maxWidth="440px";e.addEventListener("focusin",function(ev){var x=ev.target;setTimeout(function(){try{x.scrollIntoView({block:"center"})}catch(z){}},300)})})();
  function vals(){var sc=[],ok=true;N.forEach(function(n,i){var v=parseFloat(q('[data-i="'+i+'"]').value);if(isNaN(v)||v<0||v>M[i])ok=false;sc.push(v)});var g=parseFloat(q('[data-i="g"]').value);if(isNaN(g)||g<0||g>5)ok=false;var bop=parseFloat(q("#kb").value),cli=parseFloat(q("#kc").value);if(isNaN(bop)||bop<0||bop>100||isNaN(cli)||cli<0)ok=false;return{ok:ok,sc:sc,gr:g,bop:bop,cli:cli}}
- function calc(){var v=vals();if(!v.ok)return null;var s=v.sc.reduce(function(x,y){return x+y},0),t=s+v.cli,base=r1(v.gr>3?t:t/2),pen=timed&&q("#pa").checked?(parseFloat(q("#pp").value)||0):0;return{v:v,s:s,t:t,base:base,pen:pen,fn:r1(Math.max(0,base-pen))}}
- function upd(){var r=calc(),f=q("#fin");if(!r){f.textContent="";return}f.innerHTML="Scores "+r.s+" + calculus "+r1(r.v.cli)+" = "+r1(r.t)+(r.v.gr>3?"":" (infection control ≤ 3: halved)")+" → "+r.base+(timed?" − penalty "+r.pen:"")+" → <b>Final "+r.fn+"</b>"}
+ function calc(){var v=vals();if(!v.ok)return null;var s=v.sc.reduce(function(x,y){return x+y},0),t=s+v.cli,base=r1(v.gr>3?t:t/2),pen=timed&&q("#pa").checked?(parseFloat(q("#pp").value)||0):0;var exv=q("#ex").value.trim(),ex=exv===""?0:parseFloat(exv);if(isNaN(ex)||ex<0)return null;return{v:v,s:s,t:t,base:base,pen:pen,ex:ex,fn:r1(Math.max(0,base-pen)+ex)}}
+ function upd(){var r=calc(),f=q("#fin");if(!r){f.textContent="";return}f.innerHTML="Scores "+r.s+" + calculus "+r1(r.v.cli)+" = "+r1(r.t)+(r.v.gr>3?"":" (infection control ≤ 3: halved)")+" → "+r.base+(timed?" − penalty "+r.pen:"")+(r.ex?" + ⭐ extra "+r.ex:"")+" → <b>Final "+r.fn+"</b>"}
  e.addEventListener("input",function(ev){if(ev.target.id==="pr"&&timed)q("#pp").value=r1(om*(parseFloat(ev.target.value)||0));upd()});e.addEventListener("change",upd);upd();
  var sqb=q("[data-sq]");if(sqb)sqb.onclick=function(){KC.scan(function(t){var p=KC.parseCase(t);if(!p||p.id!==id){toast("That QR belongs to a different case.");return}q("#kb").value=p.bop;q("#kc").value=p.cli;upd()})};
  e.addEventListener("click",function(ev){
   var b=ev.target.closest("[data-s]");if(!b)return;var r=calc();
   if(!r){toast("Check the values: scores within their maximum, BOP 0–100, calculus 0 or more.");return}
   var c2=getCase(id),cli=r.v.cli.toFixed(1),bop=r.v.bop.toFixed(1);
-  Object.assign(c2,{sc:r.v.sc,gr:r.v.gr,fn:r.fn,doc:a.name,did:a.id,ts:Date.now(),cli:cli,bop:bop,pen:r.pen,penOn:timed?q("#pa").checked:false,rate:timed?(parseFloat(q("#pr").value)||0):c2.rate});
+  Object.assign(c2,{sc:r.v.sc,gr:r.v.gr,fn:r.fn,ex:r.ex,sgv:a.sgv||"0",doc:a.name,did:a.id,ts:Date.now(),cli:cli,bop:bop,pen:r.pen,penOn:timed?q("#pa").checked:false,rate:timed?(parseFloat(q("#pr").value)||0):c2.rate});
   c2.str=KC.caseStr({id:c2.id,student:c2.student,patient:c2.patient,age:c2.age,gender:c2.gender,group:c2.group,cli:cli,bop:bop});
   if(timed){c2.state="done";c2.tk=el;c2.lm=lim}
   putCase(c2);saved=true;m.close();view();if(b.dataset.s==="2")share(id);else toast("Saved.");
@@ -3086,15 +3110,15 @@ function editor(id){
 async function share(id){
  var a=active(),c=getCase(id);if(!a||!c||c.fn==null){toast("Score the case first.");return}
  var code=KC.rcode(),t;
- try{var P={sc:c.sc,gr:c.gr,fn:c.fn,sg:a.sg,pk:a.pub};if(c.tk!=null){P.tk=c.tk;P.pn=c.pen||0;P.lm=c.lm}
-  t=await KC.seal(c.str,c.id,a.name,P,code,await KC.importPriv(a.priv));
-  KC.modal('<b dir="auto">Score for '+esc(c.patient)+'</b><div style="max-width:340px;margin:8px auto">'+KC.qrSvg(t,"L")+'</div><div class="m" style="text-align:center">Decoder code. Give it to the student with the QR.</div><div class="code">'+code+'</div><div class="m" style="text-align:center">Final '+c.fn+(c.tk!=null?' · time '+fmtT(c.tk)+(c.pen?' · penalty −'+c.pen:""):"")+' · Dr. '+esc(a.name)+'</div>')}
+ try{var P={sc:c.sc,gr:c.gr,fn:c.fn,sg:a.sg,pk:a.pub,at:c.ts};if(c.ex>0)P.ex=c.ex;if(c.tk!=null){P.tk=c.tk;P.pn=c.pen||0;P.lm=c.lm}
+  t=await KC.seal(c.str,c.id,a.name,P,code,await KC.importPriv(a.priv));c.sgv=a.sgv||"0";putCase(c);view();
+  KC.modal('<b dir="auto">Score for '+esc(c.patient)+'</b><div style="max-width:340px;margin:8px auto">'+KC.qrSvg(t,"L")+'</div><div class="m" style="text-align:center">Decoder code. Give it to the student with the QR.</div><div class="code">'+code+'</div><div class="m" style="text-align:center">Final '+c.fn+(c.ex>0?' ⭐ (+'+c.ex+' extra)':"")+(c.tk!=null?' · time '+fmtT(c.tk)+(c.pen?' · penalty −'+c.pen:""):"")+' · Dr. '+esc(a.name)+'</div>')}
  catch(e){toast("Couldn’t build the score QR.")}
 }
 var MIN=1000,MAX=2000,sq="",ssort="name",SL=[];
 function r1(x){return Math.round(x*10)/10}
-function studs(){var m={};CAS().forEach(function(c){if(c.state==="transferred")return;var k=(c.student||"").trim().toLowerCase();if(!k)return;var s=m[k]||(m[k]={name:c.student.trim(),groups:{},cases:[],total:0,scored:0});if(c.group)s.groups[c.group]=1;s.cases.push(c);if(c.fn!=null){s.total+=c.fn;s.scored++}});
- return Object.keys(m).map(function(k){var s=m[k];s.total=r1(s.total);s.group=Object.keys(s.groups).join(", ");s.cases.sort(function(a,b){return a.ts-b.ts});return s})}
+function studs(){var m={};CAS().forEach(function(c){if(c.state==="transferred")return;var k=(c.student||"").trim().toLowerCase();if(!k)return;var s=m[k]||(m[k]={name:c.student.trim(),groups:{},cases:[],total:0,scored:0,paid:0,pend:0});if(c.group)s.groups[c.group]=1;s.cases.push(c);if(c.fn!=null){s.scored++;if(c.rc){s.total+=c.fn;s.paid++}else s.pend+=c.fn}});
+ return Object.keys(m).map(function(k){var s=m[k];s.total=r1(s.total);s.pend=r1(s.pend);s.group=Object.keys(s.groups).join(", ");s.cases.sort(function(a,b){return a.ts-b.ts});return s})}
 function stat(t){return t<MIN?{c:"no",t:"Not passed",d:"needs "+r1(MIN-t)+" more"}:t>MAX?{c:"wa",t:"Passed · above the maximum",d:"exceeds "+MAX+" by "+r1(t-MAX)}:{c:"ok",t:"Passed",d:""}}
 function dmy(ts){var t=new Date(ts),p=function(n){return("0"+n).slice(-2)};return p(t.getDate())+"/"+p(t.getMonth()+1)+"/"+t.getFullYear()}
 function vStudents(){
@@ -3105,15 +3129,16 @@ function renderStudents(){
  L.sort(function(a,b){return ssort==="hi"?b.total-a.total:ssort==="lo"?a.total-b.total:ssort==="fail"?(a.total>=MIN)-(b.total>=MIN)||a.total-b.total:a.name.localeCompare(b.name)});
  SL=L;var sel=$("#ss");if(sel)sel.value=ssort;
  var h="";L.forEach(function(s,i){var st=stat(s.total);
-  h+='<div class="card"><div class="row" style="margin-top:0"><b dir="auto" style="flex:1">'+esc(s.name)+'</b><b style="font-size:18px">'+s.total+'</b></div><div class="m">'+(s.group?"Group "+esc(s.group)+" · ":"")+s.scored+" scored of "+s.cases.length+' case'+(s.cases.length===1?"":"s")+'</div><div class="pbar"><i style="width:'+Math.min(100,s.total/MAX*100)+'%"></i><u></u></div><div class="'+st.c+'"><b>'+st.t+'</b> <span class="m">'+st.d+'</span></div><div class="row"><button class="b p" data-a="sd" data-i="'+i+'">Details</button><button class="b" data-a="sp" data-i="'+i+'">PDF</button></div></div>'});
+  h+='<div class="card"><div class="row" style="margin-top:0"><b dir="auto" style="flex:1">'+esc(s.name)+'</b><b style="font-size:18px">'+s.total+'</b></div><div class="m">'+(s.group?"Group "+esc(s.group)+" · ":"")+s.scored+" scored of "+s.cases.length+' case'+(s.cases.length===1?"":"s")+" · "+s.paid+" with receipt"+'</div>'+(s.pend>0?'<div class="m" style="color:#b45309">Not counted yet (no receipt): '+s.pend+'</div>':"")+'<div class="pbar"><i style="width:'+Math.min(100,s.total/MAX*100)+'%"></i><u></u></div><div class="'+st.c+'"><b>'+st.t+'</b> <span class="m">'+st.d+'</span></div><div class="row"><button class="b p" data-a="sd" data-i="'+i+'">Details</button><button class="b" data-a="sp" data-i="'+i+'">PDF</button></div></div>'});
  $("#slist").innerHTML=h||'<div class="card m">'+(all.length?"No matching students.":"No students yet. Students appear here once you scan their cases.")+'</div>';
  var p=all.filter(function(s){return s.total>=MIN}).length;$("#ssum").textContent=L.length+" of "+all.length+" students · "+p+" passed · "+(all.length-p)+" not passed · pass mark "+MIN+", maximum "+MAX;
 }
 function detail(s){
- var st=stat(s.total),h='<b dir="auto" style="font-size:17px">'+esc(s.name)+'</b><div class="m">'+(s.group?"Group "+esc(s.group)+" · ":"")+s.scored+" scored of "+s.cases.length+' cases</div><div style="margin-top:8px"><b style="font-size:26px">'+s.total+'</b> <span class="m">minimum '+MIN+' · maximum '+MAX+'</span></div><div class="pbar"><i style="width:'+Math.min(100,s.total/MAX*100)+'%"></i><u></u></div><div class="'+st.c+'"><b>'+st.t+'</b> <span class="m">'+st.d+'</span></div><div style="margin-top:10px">';
- s.cases.forEach(function(c){h+='<div class="row" style="margin-top:4px;border-bottom:1px solid #eee;padding-bottom:4px"><span dir="auto" style="flex:1">'+esc(c.patient)+' <span class="m">'+dmy(c.ts)+'</span>'+(c.fn!=null&&c.doc?'<div class="m">Graded by Dr. '+esc(c.doc)+'</div>':"")+'</span><b>'+(c.fn!=null?c.fn:'<span class="m">Not scored</span>')+'</b></div>'});
+ var st=stat(s.total),h='<b dir="auto" style="font-size:17px">'+esc(s.name)+'</b><div class="m">'+(s.group?"Group "+esc(s.group)+" · ":"")+s.scored+" scored of "+s.cases.length+' cases · '+s.paid+' with receipt</div><div style="margin-top:8px"><b style="font-size:26px">'+s.total+'</b> <span class="m">counted · minimum '+MIN+' · maximum '+MAX+'</span></div>'+(s.pend>0?'<div class="m" style="color:#b45309">Not counted yet (no receipt): <b>'+s.pend+'</b></div>':"")+'<div class="pbar"><i style="width:'+Math.min(100,s.total/MAX*100)+'%"></i><u></u></div><div class="'+st.c+'"><b>'+st.t+'</b> <span class="m">'+st.d+'</span></div><div class="m" style="margin-top:10px">Tap ✓ when the student has handed in the receipt for a case. Only cases with a receipt count in the total.</div><div style="margin-top:6px">';
+ s.cases.forEach(function(c){var sc=c.fn!=null;h+='<div class="row" style="margin-top:4px;border-bottom:1px solid #eee;padding-bottom:4px;align-items:center"><span dir="auto" style="flex:1">'+esc(c.patient)+' <span class="m">'+dmy(c.ts)+'</span>'+(sc&&c.doc?'<div class="m">Graded by Dr. '+esc(c.doc)+'</div>':"")+(sc&&c.rc?'<div class="m" style="color:#0f766e">Receipt received'+(c.rcAt?" "+dmy(c.rcAt):"")+'</div>':sc?'<div class="m" style="color:#b45309">No receipt yet</div>':"")+'</span>'+(sc?'<button data-rc="'+c.id+'" title="Receipt" style="'+(c.rc?"background:#0f766e;color:#fff;border-color:#0f766e;":"background:#fff;color:#999;border-color:#bbb;")+'border:1px solid;border-radius:8px;width:42px;height:38px;font-size:20px;cursor:pointer;margin-right:8px;padding:0">✓</button>':"")+'<b>'+(sc?c.fn+(c.ex>0?" ⭐":""):'<span class="m">Not scored</span>')+'</b></div>'});
  h+='</div><div class="row"><button class="b p" data-pdf style="flex:1">Export PDF</button></div>';
  var m=KC.modal(h);m.el.querySelector("[data-pdf]").onclick=function(){exportPdf([s])};
+ m.el.addEventListener("click",function(e){var b=e.target.closest("[data-rc]");if(!b)return;var c=getCase(b.dataset.rc);if(!c)return;c.rc=!c.rc;if(c.rc)c.rcAt=Date.now();else delete c.rcAt;putCase(c);m.close();var s2=studs().filter(function(x){return x.name.toLowerCase()===s.name.toLowerCase()})[0];if(s2)detail(s2);if(tab==="st")renderStudents()});
 }
 async function makePdf(L){
  var W=794,H=1123,P=44,LIM=H-2*P-30,pages=[],cur,box=document.createElement("div");
@@ -3124,14 +3149,14 @@ async function makePdf(L){
  add('<div style="text-align:center;margin-bottom:14px"><div style="font:19px/1.3 Times New Roman,serif">College of Dentistry/ University of Karbala</div><div style="font:700 16px Times New Roman,serif;margin-top:4px">Student score report</div><div style="font-size:12px;margin-top:4px">Generated '+dmy(Date.now())+' · pass mark '+MIN+' · maximum '+MAX+'</div></div>');
  if(L.length>1){
   add('<div style="font-weight:700;font-size:15px;margin:6px 0 4px">Summary</div>');
-  add(row(cell("40px","#",1)+cell("300px","Student",1)+cell("110px","Group",1)+cell("70px","Cases",1,"center")+cell("80px","Total",1,"center")+cell("90px","Result",1),"border-top:1.5px solid #000;"));
-  L.forEach(function(s,i){var st=stat(s.total);add(row(cell("40px",i+1)+cell("300px",esc(s.name))+cell("110px",esc(s.group||"–"))+cell("70px",s.scored+"/"+s.cases.length,0,"center")+cell("80px",s.total,1,"center")+cell("90px",st.c==="no"?"Not passed":st.c==="wa"?"Passed (&gt;"+MAX+")":"Passed")))});
+  add(row(cell("40px","#",1)+cell("250px","Student",1)+cell("90px","Group",1)+cell("70px","Cases",1,"center")+cell("70px","Receipts",1,"center")+cell("80px","Total",1,"center")+cell("90px","Result",1),"border-top:1.5px solid #000;"));
+  L.forEach(function(s,i){var st=stat(s.total);add(row(cell("40px",i+1)+cell("250px",esc(s.name))+cell("90px",esc(s.group||"–"))+cell("70px",s.scored+"/"+s.cases.length,0,"center")+cell("70px",s.paid+"/"+s.scored,0,"center")+cell("80px",s.total,1,"center")+cell("90px",st.c==="no"?"Not passed":st.c==="wa"?"Passed (&gt;"+MAX+")":"Passed")))});
  }
  L.forEach(function(s){var st=stat(s.total);
   add('<div style="margin-top:18px;font-weight:700;font-size:15px;border-bottom:2px solid #000;padding-bottom:4px" dir="ltr"><bdi dir="auto">'+esc(s.name)+'</bdi>'+(s.group?' <span style="font-weight:400;font-size:13px">· Group '+esc(s.group)+'</span>':"")+'</div>',130);
-  add(row(cell("250px","Patient",1)+cell("110px","Case date",1)+cell("120px","Graded by",1)+cell("90px","Score",1,"center")));
-  s.cases.forEach(function(c){add(row(cell("250px",esc(c.patient))+cell("110px",dmy(c.ts))+cell("120px",c.fn!=null&&c.doc?"Dr. "+esc(c.doc):"–")+cell("90px",c.fn!=null?c.fn:"Not scored",0,"center")))});
-  add(row(cell("480px","Total score",1)+cell("90px",s.total,1,"center"),"border-top:1.5px solid #000;"));
+  add(row(cell("210px","Patient",1)+cell("95px","Case date",1)+cell("105px","Graded by",1)+cell("90px","Receipt",1,"center")+cell("70px","Score",1,"center")));
+  s.cases.forEach(function(c){var rcT=c.fn==null?"–":c.rc?"✓ Paid"+(c.rcAt?" "+dmy(c.rcAt).slice(0,5):""):"✗ Not yet";add(row(cell("210px",esc(c.patient))+cell("95px",dmy(c.ts))+cell("105px",c.fn!=null&&c.doc?"Dr. "+esc(c.doc):"–")+cell("90px",'<span style="color:'+(c.fn!=null&&c.rc?"#0a6":"#a40")+'">'+rcT+"</span>",0,"center")+cell("70px",c.fn!=null?'<span style="'+(c.rc?"":"color:#999;text-decoration:line-through;")+'">'+c.fn+(c.ex>0?" ★":"")+"</span>":"Not scored",0,"center")))});
+  add(row(cell("500px","Total score (only cases with a receipt are counted)",1)+cell("70px",s.total,1,"center"),"border-top:1.5px solid #000;"));if(s.pend>0)add(row(cell("500px","Not counted yet (no receipt)")+cell("70px",s.pend,0,"center")));
   add('<div style="padding:6px;border:1.5px solid #000;margin-top:8px;font-weight:700">Result: '+st.t+(st.d?" – "+st.d:"")+' <span style="font-weight:400">(minimum '+MIN+', maximum '+MAX+')</span></div>');
  });
  pages.forEach(function(p,i){var f=document.createElement("div");f.style.cssText="position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:11px";f.textContent="Page "+(i+1)+" of "+pages.length;p.pg.appendChild(f)});
@@ -3178,6 +3203,147 @@ function restore(){
    sv("kc_cas",cs);sv("kc_acc",ac);setB(KL.merge(getB(),d.bundles));if(!ld("kc_act",null)&&d.active)sv("kc_act",d.active);view();toast("Restored "+nc+" cases and "+na+" accounts.");return""})};r.readAsText(f)};
  i.click();
 }
+/* ===== signature editor (draw or photo) ===== */
+function rdp(pts,eps){if(pts.length<3)return pts.slice();var keep=new Uint8Array(pts.length);keep[0]=keep[pts.length-1]=1;var st=[[0,pts.length-1]];
+ while(st.length){var s=st.pop(),a=pts[s[0]],b=pts[s[1]],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.sqrt(dx*dx+dy*dy)||1e-9,mx=0,mi=-1,span=s[1]-s[0];
+  for(var i=s[0]+1;i<s[1];i++){var d=Math.abs((pts[i][0]-a[0])*dy-(pts[i][1]-a[1])*dx)/L,dw=Math.abs(pts[i][2]-(a[2]+(b[2]-a[2])*(i-s[0])/span))*.9;if(dw>d)d=dw;if(d>mx){mx=d;mi=i}}
+  if(mx>eps&&mi>0){keep[mi]=1;st.push([s[0],mi],[mi,s[1]])}}
+ return pts.filter(function(_,i){return keep[i]})}
+function sgSmooth(s,win,ch){var n=s.length;if(n<5)return s;var o=[],h=Math.min(win,(n-1)>>1);
+ for(var i=0;i<n;i++){var hh=Math.min(h,i,n-1-i),a=0,b=0,c=0,m=0;for(var j=i-hh;j<=i+hh;j++){a+=s[j][0];b+=s[j][1];c+=s[j][2];m++}o.push([ch?s[i][0]:a/m,ch?s[i][1]:b/m,c/m])}return o}
+function sgFit(strokes){
+ var n=0,x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;strokes.forEach(function(s){s.forEach(function(p){n++;if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]})});
+ if(!n)return"";
+ var bw=Math.max(x1-x0,1),bh=Math.max(y1-y0,1),k=Math.min(120/bw,56/bh),ox=(128-bw*k)/2-x0*k,oy=(64-bh*k)/2-y0*k,eps=.22,out,cnt,
+ pre=strokes.map(function(s){s=sgSmooth(sgSmooth(s,4,0),3,0);return s.map(function(p){return[p[0]*k+ox,p[1]*k+oy,Math.max(.5,Math.min(3.4,p[2]*k*0.9))]})});
+ do{out=pre.map(function(s){return rdp(s,eps)}).filter(function(s){return s.length});cnt=out.reduce(function(a,s){return a+s.length},0);eps*=1.2}while(cnt>135&&eps<8);
+ return KC.sigEnc3(out)}
+function sgExtract(cv,thr){
+ var W=cv.width,H=cv.height,d=cv.getContext("2d").getImageData(0,0,W,H).data,N=W*H,L0=new Float32Array(N),L=new Float32Array(N),i,x,y;
+ for(i=0;i<N;i++)L0[i]=.299*d[i*4]+.587*d[i*4+1]+.114*d[i*4+2];
+ for(y=0;y<H;y++)for(x=0;x<W;x++){var s0=0,c0=0;for(var yy=Math.max(0,y-1);yy<=Math.min(H-1,y+1);yy++)for(var xx=Math.max(0,x-1);xx<=Math.min(W-1,x+1);xx++){s0+=L0[yy*W+xx];c0++}L[y*W+x]=s0/c0}
+ var I=new Float64Array((W+1)*(H+1));for(y=0;y<H;y++){var rs=0;for(x=0;x<W;x++){rs+=L[y*W+x];I[(y+1)*(W+1)+x+1]=I[y*(W+1)+x+1]+rs}}
+ var R=Math.round(W/14),mask=new Uint8Array(N);
+ for(y=0;y<H;y++)for(x=0;x<W;x++){var xa=Math.max(0,x-R),xb=Math.min(W,x+R+1),ya=Math.max(0,y-R),yb=Math.min(H,y+R+1),s=I[yb*(W+1)+xb]-I[ya*(W+1)+xb]-I[yb*(W+1)+xa]+I[ya*(W+1)+xa],m=s/((xb-xa)*(yb-ya));if(m-L[y*W+x]>thr&&L[y*W+x]<215)mask[y*W+x]=1}
+ /* drop specks */
+ var lab=new Int32Array(N),stk=[],c,minC=Math.round(18*W*W/230400);
+ for(i=0;i<N;i++){if(!mask[i]||lab[i])continue;var comp=[i];lab[i]=1;stk=[i];while(stk.length){c=stk.pop();var cx=c%W,cy=(c/W)|0;for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){var nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;var j=ny*W+nx;if(mask[j]&&!lab[j]){lab[j]=1;stk.push(j);comp.push(j)}}}
+  if(comp.length<minC)comp.forEach(function(j){mask[j]=0})}
+ /* stroke thickness: distance to the nearest paper pixel */
+ var D=new Float32Array(N),BIG=1e4;for(i=0;i<N;i++)D[i]=mask[i]?BIG:0;
+ for(y=0;y<H;y++)for(x=0;x<W;x++){i=y*W+x;if(!D[i])continue;var v=D[i];if(x>0&&D[i-1]+1<v)v=D[i-1]+1;if(y>0){if(D[i-W]+1<v)v=D[i-W]+1;if(x>0&&D[i-W-1]+1.414<v)v=D[i-W-1]+1.414;if(x<W-1&&D[i-W+1]+1.414<v)v=D[i-W+1]+1.414}D[i]=v}
+ for(y=H-1;y>=0;y--)for(x=W-1;x>=0;x--){i=y*W+x;if(!D[i])continue;var v2=D[i];if(x<W-1&&D[i+1]+1<v2)v2=D[i+1]+1;if(y<H-1){if(D[i+W]+1<v2)v2=D[i+W]+1;if(x<W-1&&D[i+W+1]+1.414<v2)v2=D[i+W+1]+1.414;if(x>0&&D[i+W-1]+1.414<v2)v2=D[i+W-1]+1.414}D[i]=v2}
+ /* thin to a 1px skeleton (Zhang-Suen) */
+ var ch=true,it=0;
+ while(ch&&it<80){ch=false;it++;for(var pass=0;pass<2;pass++){var del=[];
+  for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){i=y*W+x;if(!mask[i])continue;
+   var p2=mask[i-W],p3=mask[i-W+1],p4=mask[i+1],p5=mask[i+W+1],p6=mask[i+W],p7=mask[i+W-1],p8=mask[i-1],p9=mask[i-W-1],B=p2+p3+p4+p5+p6+p7+p8+p9;if(B<2||B>6)continue;
+   var A=(!p2&&p3)+(!p3&&p4)+(!p4&&p5)+(!p5&&p6)+(!p6&&p7)+(!p7&&p8)+(!p8&&p9)+(!p9&&p2);if(A!==1)continue;
+   if(pass===0){if(p2*p4*p6||p4*p6*p8)continue}else{if(p2*p4*p8||p2*p6*p8)continue}del.push(i)}
+  if(del.length){ch=true;del.forEach(function(j){mask[j]=0})}}}
+ function nb(i){var x=i%W,y=(i/W)|0,r=[];for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;var nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;var j=ny*W+nx;if(mask[j])r.push(j)}return r}
+ /* prune short barbs left by thinning */
+ var spur=Math.round(W/60);
+ for(var rd=0;rd<2;rd++){for(i=0;i<N;i++){if(!mask[i]||nb(i).length!==1)continue;var path=[i],prev=-1,cu=i,hit=false;
+   for(;;){var cc=nb(cu).filter(function(j){return j!==prev&&path.indexOf(j)<0});if(!cc.length)break;if(cc.length>1||nb(cc[0]).length>2){hit=true;break}prev=cu;cu=cc[0];path.push(cu);if(path.length>spur)break}
+   if(hit&&path.length<=spur)path.forEach(function(j){mask[j]=0})}}
+ /* trace skeleton into strokes */
+ var vis=new Uint8Array(N),strokes=[];
+ function walk(s){var path=[s],cur=s,prev=-1;vis[s]=1;
+  for(;;){var c=nb(cur).filter(function(j){return!vis[j]});if(!c.length)break;var nx;
+   if(c.length===1||prev<0)nx=c[0];else{var px=cur%W-prev%W,py=((cur/W)|0)-((prev/W)|0),best=-9;c.forEach(function(j){var qx=j%W-cur%W,qy=((j/W)|0)-((cur/W)|0),dt=(px*qx+py*qy)/(Math.sqrt(px*px+py*py)*Math.sqrt(qx*qx+qy*qy));if(dt>best){best=dt;nx=j}})}
+   vis[nx]=1;path.push(nx);prev=cur;cur=nx}
+  return path}
+ var ends=[];for(i=0;i<N;i++)if(mask[i]&&nb(i).length===1)ends.push(i);
+ ends.forEach(function(s){if(!vis[s])strokes.push(walk(s))});
+ for(i=0;i<N;i++)if(mask[i]&&!vis[i])strokes.push(walk(i));
+ return strokes.map(function(p){return p.map(function(k){return[k%W,(k/W)|0,Math.max(1,2*D[k]-1)]})}).filter(function(s){return s.length>=6})}
+function sigEditor(cb,title){
+ var cur="",mode="d",thr=26,img=null,T={x:160,y:120,s:1,r:0,s0:1},tmr=null,strokes=[],K="border:1px solid #bbb;background:#fff;color:#111;border-radius:8px;font:inherit;cursor:pointer;padding:9px 12px";
+ var m=KC.modal('<b>'+(title||"Signature")+'</b><div class="row" style="margin:8px 0"><button class="b p" data-m="d" style="flex:1">Draw</button><button class="b" data-m="p" style="flex:1">From a photo</button></div>'
+ +'<div data-pd><div class="m" style="margin-bottom:4px">Sign inside the box (it is the same shape as the box on the sheet).</div><canvas data-dc width="640" height="320" style="width:100%;aspect-ratio:2/1;border:1px solid #888;border-radius:6px;background:#fff;touch-action:none;display:block"></canvas><div class="row"><button class="b" data-dclr>Clear</button></div></div>'
+ +'<div data-pp style="display:none"><div class="m" style="margin-bottom:6px">Sign on white paper with a blue or black pen, then take a clear photo of it in good light.</div><div class="row" style="margin-top:0"><button class="b p" data-cam style="flex:1">Take photo</button><button class="b" data-gal style="flex:1">Choose image</button></div><input type="file" accept="image/*" capture="environment" data-fc style="display:none"><input type="file" accept="image/*" data-fg style="display:none">'
+ +'<div data-ed style="display:none"><div class="m" style="margin:8px 0 2px">Drag the photo to move it · pinch to zoom and rotate · the signature must be inside the bright frame.</div><canvas data-vc width="320" height="240" style="width:100%;aspect-ratio:4/3;border-radius:6px;background:#222;touch-action:none;display:block"></canvas>'
+ +'<div class="sc"><label>Zoom</label><input type="range" data-zm min="1" max="100" value="50" style="padding:0"></div><div class="sc"><label>Rotate</label><input type="range" data-rt min="-180" max="180" step="0.5" value="0" style="padding:0"></div><div class="sc"><label>Ink sensitivity</label><input type="range" data-th min="6" max="70" value="26" style="padding:0"></div></div></div>'
+ +'<div class="m" style="margin:10px 0 2px">Result (as it will look on the sheet)</div><div data-prev style="border:1px solid #888;background:#fff;aspect-ratio:2/1;width:100%;max-width:300px;margin:0 auto"></div><div class="row"><button class="b p" data-ok style="flex:1">Use this signature</button></div>');
+ var q=function(s){return m.el.querySelector(s)};
+ function show(){q("[data-prev]").innerHTML=cur?KC.sigSvg(cur).replace('width="340" height="180"','width="100%" height="100%"'):'<div class="m" style="padding:30px 0;text-align:center">Nothing yet</div>'}
+ function setMode(x){mode=x;q("[data-pd]").style.display=x==="d"?"":"none";q("[data-pp]").style.display=x==="p"?"":"none";[].forEach.call(m.el.querySelectorAll("[data-m]"),function(b){b.className=b.dataset.m===x?"b p":"b"});cur=x==="d"?(strokes.length?sgFit(strokes.map(function(s){return s.slice()})):""):(img?cur:"");show()}
+ m.el.addEventListener("click",function(e){var b=e.target.closest("[data-m]");if(b)setMode(b.dataset.m)});
+ /* draw */
+ var dc=q("[data-dc]"),dx=dc.getContext("2d"),ds=null;dx.lineWidth=5;dx.lineCap=dx.lineJoin="round";
+ function dpt(e){var r=dc.getBoundingClientRect();return[(e.clientX-r.left)*dc.width/r.width,(e.clientY-r.top)*dc.height/r.height]}
+ dc.onpointerdown=function(e){e.preventDefault();dc.setPointerCapture(e.pointerId);var p0=dpt(e);p0.push(3.5,e.timeStamp);ds=[p0];strokes.push(ds);dx.beginPath();dx.moveTo(ds[0][0],ds[0][1]);dx.lineTo(ds[0][0]+.1,ds[0][1]);dx.stroke()};
+ dc.onpointermove=function(e){if(!ds)return;var p=dpt(e),pv=ds[ds.length-1],dt=Math.max(1,e.timeStamp-pv[3]),v=Math.hypot(p[0]-pv[0],p[1]-pv[1])/dt,tw=(e.pointerType==="pen"&&e.pressure>0)?2+6*e.pressure:Math.max(3,Math.min(8.5,8.5-1.6*v));p.push(pv[2]*.6+tw*.4,e.timeStamp);ds.push(p);dx.lineTo(p[0],p[1]);dx.stroke()};
+ dc.onpointerup=dc.onpointercancel=function(){ds=null;cur=sgFit(strokes.map(function(s){return s.slice()}));show()};
+ q("[data-dclr]").onclick=function(){strokes=[];dx.clearRect(0,0,dc.width,dc.height);cur="";show()};
+ /* photo */
+ var vc=q("[data-vc]"),vx=vc.getContext("2d"),WX=10,WY=45,WW=300,WH=150;
+ function paint(){vx.fillStyle="#222";vx.fillRect(0,0,320,240);if(img){vx.save();vx.translate(T.x,T.y);vx.rotate(T.r);vx.scale(T.s,T.s);vx.drawImage(img,-img.width/2,-img.height/2);vx.restore()}
+  vx.fillStyle="rgba(0,0,0,.55)";vx.beginPath();vx.rect(0,0,320,240);vx.rect(WX,WY,WW,WH);vx.fill("evenodd");vx.strokeStyle="#14b8a6";vx.lineWidth=2;vx.strokeRect(WX,WY,WW,WH)}
+ function sample(){var o=document.createElement("canvas");o.width=720;o.height=360;var c=o.getContext("2d");c.fillStyle="#fff";c.fillRect(0,0,480,240);c.scale(720/WW,360/WH);c.translate(-WX,-WY);c.translate(T.x,T.y);c.rotate(T.r);c.scale(T.s,T.s);c.drawImage(img,-img.width/2,-img.height/2);return o}
+ function redo(){clearTimeout(tmr);tmr=setTimeout(function(){if(!img)return;cur=sgFit(sgExtract(sample(),thr));show()},140)}
+ function sync(){q("[data-zm]").value=Math.round(Math.log(T.s/T.s0*1)/Math.log(8)*50+50);q("[data-rt]").value=Math.round(T.r*180/Math.PI*2)/2;paint();redo()}
+ function load(f){if(!f)return;var u=URL.createObjectURL(f),im=new Image();im.onload=function(){var k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);img=c;T.s0=T.s=Math.min(320/c.width,240/c.height);T.x=160;T.y=120;T.r=0;q("[data-ed]").style.display="";sync()};im.onerror=function(){toast("Couldn’t open that image.")};im.src=u}
+ q("[data-cam]").onclick=function(){q("[data-fc]").click()};q("[data-gal]").onclick=function(){q("[data-fg]").click()};
+ q("[data-fc]").onchange=function(){load(this.files[0])};q("[data-fg]").onchange=function(){load(this.files[0])};
+ q("[data-zm]").oninput=function(){T.s=T.s0*Math.pow(8,(this.value-50)/50);paint();redo()};
+ q("[data-rt]").oninput=function(){T.r=this.value*Math.PI/180;paint();redo()};
+ q("[data-th]").oninput=function(){thr=+this.value;redo()};
+ var ptr={};function pv(e){var r=vc.getBoundingClientRect();return[(e.clientX-r.left)*320/r.width,(e.clientY-r.top)*240/r.height]}
+ vc.onpointerdown=function(e){e.preventDefault();vc.setPointerCapture(e.pointerId);ptr[e.pointerId]=pv(e)};
+ vc.onpointermove=function(e){if(!ptr[e.pointerId]||!img)return;var ids=Object.keys(ptr),old=ptr[e.pointerId],nw=pv(e);
+  if(ids.length===1){T.x+=nw[0]-old[0];T.y+=nw[1]-old[1]}
+  else{var o2=ptr[ids.filter(function(k){return k!=e.pointerId})[0]],d0=Math.hypot(old[0]-o2[0],old[1]-o2[1])||1,d1=Math.hypot(nw[0]-o2[0],nw[1]-o2[1])||1,a0=Math.atan2(old[1]-o2[1],old[0]-o2[0]),a1=Math.atan2(nw[1]-o2[1],nw[0]-o2[0]);T.s=Math.max(T.s0*.125,Math.min(T.s0*8,T.s*d1/d0));T.r+=a1-a0;T.x+=(nw[0]-old[0])/2;T.y+=(nw[1]-old[1])/2}
+  ptr[e.pointerId]=nw;sync()};
+ vc.onpointerup=vc.onpointercancel=function(e){delete ptr[e.pointerId]};
+ paint();show();
+ q("[data-ok]").onclick=function(){if(!cur){toast(mode==="p"?"Take or choose a photo first.":"Draw your signature first.");return}m.close();cb(cur)};
+}
+
+var NEWSG="",NEWNM="";
+function oldSig(c){var a=active();return!!(a&&c.fn!=null&&c.state!=="transferred"&&c.did===a.id&&(c.sgv||"0")!==(a.sgv||"0"))}
+function oldSigCases(){return CAS().filter(oldSig)}
+function oldBanner(){var n=oldSigCases().length;return n?'<div class="card" style="border:2px solid #b45309;background:#fffbeb"><b style="color:#b45309">⚠ '+n+' graded case'+(n>1?'s use':' uses')+' your old signature</b><div class="m" style="margin:4px 0">Re-share each one so the student gets the updated signature.</div><div class="row"><button class="b p" data-a="oldsig" style="flex:1">Review</button></div></div>':""}
+function oldSigReview(){
+ var L=oldSigCases();if(!L.length){toast("Nothing to update.");return}
+ var h='<b>Cases with your old signature ('+L.length+')</b><div class="m" style="margin:4px 0 8px">Tap Re-share, show the new QR and code to the student, and they scan it again. The case is marked as updated automatically.</div>';
+ L.forEach(function(c){h+='<div class="row" style="border-top:1px solid #eee;padding-top:6px;align-items:center"><span dir="auto" style="flex:1"><b>'+esc(c.patient)+'</b><div class="m">'+esc(c.student)+' · Group '+esc(c.group)+' · Final '+esc(c.fn)+'</div></span><button class="b p" data-rs="'+c.id+'">Re-share</button></div>'});
+ var m=KC.modal(h);m.el.addEventListener("click",function(e){var b=e.target.closest("[data-rs]");if(!b)return;m.close();share(b.dataset.rs)});
+}
+(function(){var s=document.createElement("style");s.textContent=".sg svg{width:100%;height:100%;display:block}";document.head.appendChild(s)})();
+
+/* ===== version + update check ===== */
+var APP_VER="1.0.13",APP_REPO="perio-case-sheet-doctor";
+function uEsc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function vnum(v){return String(v||"").replace(/^[^\d]*/,"").split(/[.\-+]/).slice(0,4).map(function(x){return parseInt(x,10)||0})}
+function vNewer(a,b){var x=vnum(a),y=vnum(b);for(var i=0;i<4;i++){var p=x[i]||0,q=y[i]||0;if(p!==q)return p>q}return false}
+function osKind(){var u=navigator.userAgent||"";if(/Android/i.test(u))return"android";if(/iPhone|iPad|iPod/i.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))return"ios";if(/Windows/i.test(u))return"windows";return"other"}
+async function chkUpd(manual){
+ if(!navigator.onLine){if(manual)toast("No internet connection.");return}
+ var j;
+ try{var ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},9000);var r=await fetch("https://api.github.com/repos/UOK-dentistry-college/"+APP_REPO+"/releases/latest",{headers:{Accept:"application/vnd.github+json"},signal:ctl.signal,cache:"no-store"});clearTimeout(to);if(!r.ok)throw 0;j=await r.json()}
+ catch(e){if(manual)toast("Couldn’t check for updates. Try again later.");return}
+ try{localStorage.setItem("upd_last",String(Date.now()))}catch(e){}
+ var tag=j.tag_name||j.name||"";
+ if(!vNewer(tag,APP_VER)){if(manual)toast("You have the latest version ("+APP_VER+").");return}
+ if(!manual){try{var sk=(localStorage.getItem("upd_skip")||"").split("|");if(sk[0]===tag&&Date.now()-(+sk[1]||0)<864e5)return}catch(e){}}
+ updModal(j,tag);
+}
+function updModal(j,tag){
+ var os=osKind(),as=j.assets||[],pick=function(re){return as.filter(function(a){return re.test(a.name)})},ver=uEsc(String(tag).replace(/^v/i,""));
+ var LB='display:block;text-align:center;padding:11px;border-radius:8px;font-weight:700;text-decoration:none;margin-top:8px;',L1=LB+'background:#0f766e;color:#fff;',L2=LB+'background:#fff;color:#0f766e;border:2px solid #0f766e;';
+ var h='<b>New version available</b><div style="margin:6px 0 4px;font-size:14px">You have <b>'+uEsc(APP_VER)+'</b>. The latest is <b>'+ver+'</b>.</div>';
+ var link=function(u,t,st){return'<a href="'+uEsc(u)+'" target="_blank" rel="noopener" style="'+st+'">'+t+'</a>'};
+ if(os==="android"){var ap=pick(/\.apk$/i)[0];h+=ap?link(ap.browser_download_url,"Download the update (APK)",L1)+'<div style="font-size:12px;color:#666;margin-top:6px">Open the downloaded file to install it over the old one.</div>':link(j.html_url,"Open the release page",L1)}
+ else if(os==="windows"){var ex=pick(/\.exe$/i)[0],zp=pick(/\.zip$/i)[0];if(ex)h+=link(ex.browser_download_url,"Download the installer (.exe)",L1);if(zp)h+=link(zp.browser_download_url,"Download the ZIP",ex?L2:L1);if(!ex&&!zp)h+=link(j.html_url,"Open the release page",L1)}
+ else if(os==="ios"){h+='<div style="margin:8px 0;padding:10px;border-radius:8px;background:#fffbeb;border:1px solid #f59e0b;font-size:14px">The new version downloads by itself. <b>Close the app completely and open it again, a few times</b>, until this message stops appearing.</div>'}
+ else h+=link(j.html_url,"Open the release page",L1);
+ var m=KC.modal(h+'<div style="margin-top:8px"><button data-later style="border:1px solid #bbb;background:#fff;color:#111;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer">Remind me later</button></div>');
+ m.el.querySelector("[data-later]").onclick=function(){try{localStorage.setItem("upd_skip",tag+"|"+Date.now())}catch(e){}m.close()};
+}
+setTimeout(function(){var l=0;try{l=+localStorage.getItem("upd_last")||0}catch(e){}if(Date.now()-l>216e5)chkUpd(false)},4000);
+
 /* ===== Transfer / Sync / Grades PDF ===== */
 var XTTL=600000,TRB={};
 function bytes(s){return te.encode(s).length}
@@ -3186,8 +3352,13 @@ function own(c){if(c.fn==null)return true;var a=active();if(!a)return true;retur
 function xsnap(c,now){var s=c.state,pt=c.pt||0,p0=c.p0==null?null:c.p0;if(s==="grading"){if(c.prev==="running"){pt+=now-p0;p0=null;s="running"}else s="paused"}return{state:s,t0:c.t0,dur:c.dur,pt:pt,p0:p0}}
 function xpack(c,sn){var x=sn||c.xs;return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],x.state,x.t0,x.dur,x.pt,x.p0,c.sess||""]}
 function xchunks(rows,from){var gr=[],cur=[],sz=0;rows.forEach(function(r){var l=bytes(JSON.stringify(r))+1;if(cur.length&&sz+l>900){gr.push(cur);cur=[];sz=0}cur.push(r);sz+=l});if(cur.length)gr.push(cur);var b=nid();return gr.map(function(g,i){return"KT1~"+JSON.stringify({f:from,b:b,k:i+1,n:gr.length,c:g})})}
+function trShareText(chs){
+ var txt="Perio Supervisor · "+chs.length+" transfer code"+(chs.length>1?"s":"")+"\nOpen the app → Receive cases → paste everything below.\n\n"+chs.join("\n\n");
+ if(navigator.share){navigator.share({title:"Perio transferred cases",text:txt}).catch(function(){})}
+ else{try{navigator.clipboard.writeText(txt).then(function(){toast("Codes copied. Paste them in Telegram or any chat.")},function(){toast("Sharing isn’t available here.")})}catch(e){toast("Sharing isn’t available here.")}}
+}
 function showTr(chs,onClose,msg){
- var i=0,tm=null,play=chs.length>1,m=KC.modal('<b>'+((msg&&msg.t)||"Transfer QR")+'</b><div class="m" style="margin:4px 0">'+((msg&&msg.d)||"Your colleague opens <b>Receive cases</b> and points the camera at this. The cases are locked on your phone.")+'</div><div id="trq" style="max-width:340px;margin:8px auto"></div><div class="m" id="trn" style="text-align:center"></div><div class="row" data-nv><button class="b" data-tp style="flex:1">◀</button><button class="b" data-tpl style="flex:2"></button><button class="b" data-tn style="flex:1">▶</button></div><div class="row"><button class="b" data-tc style="flex:1">Copy code</button></div>',function(){clearInterval(tm);if(onClose)onClose()}),q=function(s){return m.el.querySelector(s)};
+ var i=0,tm=null,play=chs.length>1,m=KC.modal('<b>'+((msg&&msg.t)||"Transfer QR")+'</b><div class="m" style="margin:4px 0">'+((msg&&msg.d)||"Your colleague opens <b>Receive cases</b> and points the camera at this. The cases are locked on your phone.")+'</div><div id="trq" style="max-width:340px;margin:8px auto"></div><div class="m" id="trn" style="text-align:center"></div><div class="row" data-nv><button class="b" data-tp style="flex:1">◀</button><button class="b" data-tpl style="flex:2"></button><button class="b" data-tn style="flex:1">▶</button></div><div class="row"><button class="b" data-tc style="flex:1">Copy code</button><button class="b p" data-tsh style="flex:1">Share…</button></div>',function(){clearInterval(tm);if(onClose)onClose()}),q=function(s){return m.el.querySelector(s)};
  function draw(){q("#trq").innerHTML=KC.qrSvg(chs[i],"L");q("#trn").textContent=chs.length>1?"QR "+(i+1)+" of "+chs.length+(play?" · changing automatically, keep the camera on it":" · paused"):"";q("[data-tpl]").textContent=play?"⏸ Pause":"▶ Play";q("[data-nv]").style.display=chs.length>1?"":"none"}
  function go(d){i=(i+d+chs.length)%chs.length;draw()}
  function stop(){play=false;clearInterval(tm)}
@@ -3195,6 +3366,7 @@ function showTr(chs,onClose,msg){
  q("[data-tn]").onclick=function(){stop();go(1)};
  q("[data-tpl]").onclick=function(){if(play)stop();else{play=true;tm=setInterval(function(){go(1)},1500)}draw()};
  q("[data-tc]").onclick=function(){try{navigator.clipboard.writeText(chs[i]).then(function(){toast("Code copied.")},function(){toast("Copy isn’t available here.")})}catch(e){toast("Copy isn’t available here.")}};
+ q("[data-tsh]").onclick=function(){trShareText(chs)};
  draw();if(play)tm=setInterval(function(){go(1)},1500);
 }
 function trSend(){
@@ -3202,16 +3374,17 @@ function trSend(){
  if(!L.length){toast("No ongoing cases to transfer.");return}
  var now=Date.now(),h='<b>Transfer ongoing cases</b><div class="m" style="margin:4px 0 8px">Select the cases to hand to a colleague. Their timers keep counting.</div><label style="display:block;padding:5px 0"><input type="checkbox" data-all checked> <b>Select all</b></label><div style="max-height:38vh;overflow:auto">';
  L.forEach(function(c){h+='<label style="display:block;padding:6px 0;border-top:1px solid #eee"><input type="checkbox" data-trc="'+esc(c.id)+'" checked> <span dir="auto">'+esc(c.patient)+'</span><div class="m" dir="auto" style="margin-left:22px">'+esc(c.student)+' · Group '+esc(c.group)+' · '+fmtT(elapsed(c,now))+(c.state==="running"?" running":" stopped")+'</div></label>'});
- h+='</div><div class="row"><button class="b p" data-go style="flex:1">Transfer selected</button></div>';
+ h+='</div><div class="row"><button class="b p" data-go style="flex:1">Transfer selected</button></div><div class="row"><button class="b" data-gosh style="flex:1">Transfer &amp; share the code</button></div>';
  var m=KC.modal(h);
  m.el.addEventListener("change",function(e){if(e.target.hasAttribute("data-all"))m.el.querySelectorAll("[data-trc]").forEach(function(x){x.checked=e.target.checked})});
- m.el.querySelector("[data-go]").onclick=function(){
+ var goF=function(doShare){
   var ids=[].map.call(m.el.querySelectorAll("[data-trc]:checked"),function(x){return x.dataset.trc});
   if(!ids.length){toast("Select at least one case.");return}
   var a=active(),l=CAS(),t=Date.now(),rows=[];
   l.forEach(function(c){if(ids.indexOf(c.id)<0)return;var sn=xsnap(c,t);rows.push(xpack(c,sn));c.xs=sn;c.xt=t;c.state="transferred";delete c.prev});
-  sv("kc_cas",l);m.close();view();showTr(xchunks(rows,a?a.name:""),function(){view()});
+  sv("kc_cas",l);m.close();view();var chs=xchunks(rows,a?a.name:"");showTr(chs,function(){view()});if(doShare)trShareText(chs);
  };
+ m.el.querySelector("[data-go]").onclick=function(){goF(false)};m.el.querySelector("[data-gosh]").onclick=function(){goF(true)};
 }
 function trShow(id){var c=getCase(id);if(!c||!c.xs)return;var a=active();showTr(xchunks([xpack(c)],a?a.name:""))}
 function trIn(t){
@@ -3240,9 +3413,9 @@ function trScan(){
   return r.done},true);
 }
 function trRecv(){
- var m=KC.modal('<b>Receive transferred cases</b><div class="m" style="margin:4px 0">Open the camera and point it at your colleague’s screen. It keeps scanning until every QR is received.</div><div class="row"><button class="b p" data-sc style="flex:1">Open camera</button></div><div class="m" style="margin:10px 0 4px">Or paste the code:</div><textarea data-pt dir="ltr" rows="3" style="width:100%;box-sizing:border-box;font:13px monospace"></textarea><div class="row"><button class="b" data-pi style="flex:1">Import pasted code</button></div>');
+ var m=KC.modal('<b>Receive transferred cases</b><div class="m" style="margin:4px 0">Open the camera and point it at your colleague’s screen. It keeps scanning until every QR is received.</div><div class="row"><button class="b p" data-sc style="flex:1">Open camera</button></div><div class="m" style="margin:10px 0 4px">Or paste the code (you can paste several at once):</div><textarea data-pt dir="ltr" rows="3" style="width:100%;box-sizing:border-box;font:13px monospace"></textarea><div class="row"><button class="b" data-pi style="flex:1">Import pasted code</button></div>');
  m.el.querySelector("[data-sc]").onclick=function(){m.close();trScan()};
- m.el.querySelector("[data-pi]").onclick=function(){var r=trIn(m.el.querySelector("[data-pt]").value);if(!r){toast("That isn’t a transfer code.");return}m.close();if(!r.done)trScan()};
+ m.el.querySelector("[data-pi]").onclick=function(){var parts=m.el.querySelector("[data-pt]").value.split("KT1~").slice(1).map(function(x){return"KT1~"+x.trim()}),last=null;parts.forEach(function(x){var r=trIn(x);if(r)last=r});if(!last){toast("That isn’t a transfer code.");return}m.close();if(!last.done)trScan()};
 }
 /* ---- sync graded cases ---- */
 function syncUI(){
@@ -3253,9 +3426,9 @@ function syncUI(){
  m.el.querySelector("[data-sr]").onclick=function(){m.close();syncRecv()};
 }
 var SYB={};
-function syPack(c){return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],c.sc||[],c.gr,c.fn,c.doc||"",c.did||"",c.ts,c.tk==null?null:c.tk,c.pen||0,c.lm==null?null:c.lm,c.penOn===false?0:1,c.rate==null?null:c.rate,c.dur==null?null:c.dur,c.t0==null?null:c.t0,c.pt||0]}
+function syPack(c){return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],c.sc||[],c.gr,c.fn,c.doc||"",c.did||"",c.ts,c.tk==null?null:c.tk,c.pen||0,c.lm==null?null:c.lm,c.penOn===false?0:1,c.rate==null?null:c.rate,c.dur==null?null:c.dur,c.t0==null?null:c.t0,c.pt||0,c.rc?1:0,c.rcAt||0,c.ex||0]}
 function syUnpack(r){var o={id:r[0],student:r[1],patient:r[2],age:r[3],gender:r[4],group:r[5],cli:r[6],bop:r[7],cc:r[8]||[],sc:r[9]||[],gr:r[10],fn:r[11],doc:r[12],ts:r[14],pen:r[16],penOn:!!r[18],state:r[15]!=null?"done":"none"};
- if(r[13])o.did=r[13];if(r[15]!=null){o.tk=r[15];o.lm=r[17]}if(r[19]!=null)o.rate=r[19];if(r[20]!=null)o.dur=r[20];if(r[21]!=null){o.t0=r[21];o.fromStart=true}o.pt=r[22]||0;o.str=sstr(o);return o}
+ if(r[13])o.did=r[13];if(r[15]!=null){o.tk=r[15];o.lm=r[17]}if(r[19]!=null)o.rate=r[19];if(r[20]!=null)o.dur=r[20];if(r[21]!=null){o.t0=r[21];o.fromStart=true}o.pt=r[22]||0;if(r[23]){o.rc=true;if(r[24])o.rcAt=r[24]}if(r[25]>0)o.ex=r[25];o.str=sstr(o);return o}
 function sychunks(rows,from){var gr=[],cur=[],sz=0;rows.forEach(function(r){var l=bytes(JSON.stringify(r))+1;if(cur.length&&sz+l>950){gr.push(cur);cur=[];sz=0}cur.push(r);sz+=l});if(cur.length)gr.push(cur);var b=nid();return gr.map(function(g,i){return"KY1~"+JSON.stringify({f:from,b:b,k:i+1,n:gr.length,c:g})})}
 function syQrSend(){
  var all=CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"});
@@ -3289,9 +3462,28 @@ function syScan(first){
   return r.done},true);
 }
 function syShow(rows,from){syReview(rows.map(syUnpack),from)}
-function cfSide(c,lab,i,val,chk){var s=c.sc||[];return'<label style="flex:1;min-width:0;display:block;border:1px solid #ccc;border-radius:8px;padding:6px;font-size:13px"><span style="display:flex;align-items:center;gap:6px"><input type="radio" name="cf'+i+'" value="'+val+'"'+(chk?" checked":"")+' style="width:20px;height:20px;min-width:20px;margin:0;padding:0;flex:none"><b>'+lab+'</b></span><div dir="auto" style="margin-top:4px">Dr. '+esc(c.doc||"–")+'</div><div style="font-size:20px;font-weight:700">'+esc(c.fn)+'</div><div class="m">Sheet '+esc(s[0])+' · Motiv. '+esc(s[1])+' · Indices '+esc(s[2])+' · Diagn. '+esc(s[3])+' · Eval. '+esc(s[4])+'</div><div class="m">Infection '+esc(c.gr)+' · Calculus '+esc(c.cli)+' · Penalty '+esc(c.pen||0)+'</div><div class="m">Graded '+dmy(c.ts)+'</div></label>'}
+function cfSide(c,lab,i,val,chk){var s=c.sc||[];return'<label style="flex:1;min-width:0;display:block;border:1px solid #ccc;border-radius:8px;padding:6px;font-size:13px"><span style="display:flex;align-items:center;gap:6px"><input type="radio" name="cf'+i+'" value="'+val+'"'+(chk?" checked":"")+' style="width:20px;height:20px;min-width:20px;margin:0;padding:0;flex:none"><b>'+lab+'</b></span><div dir="auto" style="margin-top:4px">Dr. '+esc(c.doc||"–")+'</div><div style="font-size:20px;font-weight:700">'+esc(c.fn)+'</div><div class="m">Sheet '+esc(s[0])+' · Motiv. '+esc(s[1])+' · Indices '+esc(s[2])+' · Diagn. '+esc(s[3])+' · Eval. '+esc(s[4])+'</div><div class="m">Infection '+esc(c.gr)+' · Calculus '+esc(c.cli)+'</div><div class="m">Extra ★ '+esc(c.ex>0?c.ex:0)+' · Penalty '+esc(c.pen||0)+'</div><div class="m">Graded '+dmy(c.ts)+'</div></label>'}
 function syReview(inc,from){
- var cs=CAS(),nw=[],cf=[],up=[],same=0,skip=0;
+ var A=ACC(),ids={},nm=function(s){return(s||"").trim().toLowerCase()};A.forEach(function(x){ids[x.id]=1});
+ var fl=inc.filter(function(o){return o&&o.fn!=null&&o.did&&!ids[o.did]&&A.some(function(x){return nm(x.name)===nm(o.doc)})});
+ if(!fl.length)return syReview2(inc,from);
+ var act=active(),tg=function(o){var m=A.filter(function(x){return nm(x.name)===nm(o.doc)});return act&&m.some(function(x){return x.id===act.id})?act:m[0]};
+ var rd=function(v,t,s){return'<label style="display:block;padding:6px 0;border-top:1px solid #eee"><input type="radio" name="syf" value="'+v+'" style="width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle"><b>'+t+'</b>'+(s?'<div class="m" style="margin-left:26px">'+s+'</div>':"")+'</label>'};
+ var h='<b style="color:#b45309">⚠ Same doctor name, different account ('+fl.length+')</b><div class="m" style="margin:4px 0 6px">These graded cases were graded by a Dr. whose name is the same as an account on this phone, but with a different account ID. It may be another device of yours, an account that was shared the wrong way, or a forged one. Choose what to do with them:</div><div style="max-height:22vh;overflow:auto">';
+ fl.forEach(function(o){h+='<div dir="auto" style="padding:3px 0;border-top:1px solid #eee"><b>'+esc(o.patient)+'</b> · '+esc(o.fn)+'<div class="m">'+esc(o.student)+' · Group '+esc(o.group)+' · Dr. '+esc(o.doc)+'</div></div>'});
+ h+='</div>'+rd("mine","Count them as graded from this account","They are added under your account as they are. Students keep the scores they already have.")+rd("upd","Update them with my current account and mark them to re-share","They are added under your account ID and signature and listed in your old-signature warning, so you can re-share each one with the new signature.")+rd("skip","Don’t import these cases","")+'<div class="row"><button class="b p" data-go style="flex:1">Continue</button></div>';
+ var m=KC.modal(h);
+ m.el.querySelector("[data-go]").onclick=function(){
+  var r=m.el.querySelector('input[name="syf"]:checked');if(!r){toast("Choose an option first.");return}
+  m.close();
+  var out=[];inc.forEach(function(o){if(fl.indexOf(o)<0){out.push(o);return}
+   if(r.value==="skip")return;var a=tg(o);o.did=a.id;o.doc=a.name;o.sgv=r.value==="upd"?"0":(a.sgv||"0");out.push(o)});
+  syReview2(out,from)};
+}
+function syReview2(inc,from){
+ var cs=CAS(),nw=[],cf=[],up=[],same=0,skip=0,rcn=0;
+ inc.forEach(function(o){if(o&&o.fn!=null&&o.rc){var l0=cs.filter(function(x){return x.id===o.id})[0];if(l0&&l0.fn!=null&&!l0.rc){l0.rc=true;if(o.rcAt)l0.rcAt=o.rcAt;rcn++}}});
+ if(rcn)sv("kc_cas",cs);
  inc.forEach(function(o){
   if(!o||o.fn==null||!o.id)return;
   var l=cs.filter(function(x){return x.id===o.id})[0];
@@ -3300,10 +3492,10 @@ function syReview(inc,from){
   var sd=l.did&&o.did?l.did===o.did:l.doc===o.doc;
   if(!sd)cf.push({a:l,b:o});else if((o.ts||0)>(l.ts||0))up.push(o);else same++;
  });
- if(!nw.length&&!cf.length&&!up.length){KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all the cases received'+(from?" from Dr. "+esc(from):"")+'.'+(skip?" ("+skip+" still ongoing here.)":"")+'</div>');return}
+ if(!nw.length&&!cf.length&&!up.length){if(rcn){view();toast("Receipt marks updated for "+rcn+" case"+(rcn>1?"s":"")+".")}else KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all the cases received'+(from?" from Dr. "+esc(from):"")+'.'+(skip?" ("+skip+" still ongoing here.)":"")+'</div>');return}
  var h='<b>Received cases</b><div class="m" style="margin:4px 0 6px">'+(from?"From Dr. "+esc(from)+". ":"")+(same?same+" already on your phone. ":"")+(up.length?up.length+" newer version(s) of cases you already have will be updated. ":"")+'</div>';
- if(cf.length){h+='<div style="margin-top:6px;padding:8px;border:2px solid #b45309;border-radius:10px;background:#fffbeb"><b style="color:#b45309">Same case, graded by different doctors ('+cf.length+')</b><div class="m" style="margin:2px 0 6px">Choose which grade to keep for each case.</div>';
-  cf.forEach(function(p,i){h+='<div style="margin-bottom:10px"><div dir="auto"><b>'+esc(p.a.patient)+'</b> <span class="m">· '+esc(p.a.student)+' · Group '+esc(p.a.group)+'</span></div><div style="display:flex;gap:6px;margin-top:4px">'+cfSide(p.a,"This phone",i,"mine",true)+cfSide(p.b,"Received",i,"theirs",false)+'</div></div>'});
+ if(cf.length){h+='<div style="margin-top:6px;padding:8px;border:2px solid #b45309;border-radius:10px;background:#fffbeb"><b style="color:#b45309">Same case, graded by different doctors ('+cf.length+')</b><div class="m" style="margin:2px 0 6px">Only the latest grade counts, so the newer one is selected for you. Change it only if you need to.</div>';
+  cf.forEach(function(p,i){h+='<div style="margin-bottom:10px"><div dir="auto"><b>'+esc(p.a.patient)+'</b> <span class="m">· '+esc(p.a.student)+' · Group '+esc(p.a.group)+'</span></div>'+'<div style="display:flex;gap:6px;margin-top:4px">'+cfSide(p.a,"This phone"+(((p.b.ts||0)>(p.a.ts||0))?"":" · newer ✓"),i,"mine",!((p.b.ts||0)>(p.a.ts||0)))+cfSide(p.b,"Received"+(((p.b.ts||0)>(p.a.ts||0))?" · newer ✓":""),i,"theirs",(p.b.ts||0)>(p.a.ts||0))+'</div></div>'});
   h+='</div>'}
  if(nw.length){h+='<div style="margin-top:10px"><b>New cases ('+nw.length+')</b></div><label style="display:block;padding:4px 0"><input type="checkbox" data-all checked style="width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle"> <b>Select all</b></label><div style="max-height:30vh;overflow:auto">';
   nw.forEach(function(o,i){h+='<label style="display:block;padding:6px 0;border-top:1px solid #eee"><input type="checkbox" data-nc="'+i+'" checked style="width:20px;height:20px;margin:0 6px 0 0;padding:0;vertical-align:middle"><span dir="auto">'+esc(o.patient)+'</span> <b>· '+esc(o.fn)+'</b><div class="m" dir="auto" style="margin-left:26px">'+esc(o.student)+' · Group '+esc(o.group)+' · Dr. '+esc(o.doc)+'</div></label>'});
@@ -3312,7 +3504,7 @@ function syReview(inc,from){
  var m=KC.modal(h);
  m.el.addEventListener("change",function(e){if(e.target.hasAttribute("data-all"))m.el.querySelectorAll("[data-nc]").forEach(function(x){x.checked=e.target.checked})});
  m.el.querySelector("[data-add]").onclick=function(){
-  var l=CAS(),n=0,put=function(o){var k=l.findIndex(function(x){return x.id===o.id});if(k>=0)l[k]=o;else l.push(o)};
+  var l=CAS(),n=0,put=function(o){var k=l.findIndex(function(x){return x.id===o.id});if(k>=0){if(l[k].rc&&!o.rc){o.rc=true;o.rcAt=l[k].rcAt}l[k]=o}else l.push(o)};
   [].forEach.call(m.el.querySelectorAll("[data-nc]:checked"),function(x){put(nw[+x.dataset.nc]);n++});
   up.forEach(function(o){put(o);n++});
   cf.forEach(function(p,i){var r=m.el.querySelector('input[name="cf'+i+'"]:checked');if(r&&r.value==="theirs"){put(p.b);n++}});
@@ -3368,7 +3560,7 @@ async function gradesPdf(L,lab){
  function np(){var pg=document.createElement("div");pg.style.cssText="width:"+W+"px;height:"+H+"px;padding:"+P+"px;background:#fff;position:relative;overflow:hidden;box-sizing:border-box";var inn=document.createElement("div");pg.appendChild(inn);box.appendChild(pg);cu={pg:pg,inn:inn};pages.push(cu);
   var t=document.createElement("div");t.style.cssText="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px";t.innerHTML='<div style="font:700 17px Times New Roman,serif">Case grades · <bdi>'+esc(lab)+'</bdi></div><div style="font-size:11px">College of Dentistry / University of Karbala · '+L.length+' case(s) · '+dmy(Date.now())+'</div>';inn.appendChild(t);inn.appendChild(hdr())}
  L.forEach(function(c,i){
-  var s=c.sc||[],e=rowEl(cell("28px",i+1,"center")+cell("",esc(c.student))+cell("50px",esc(c.group||"–"),"center")+cell("",esc(c.patient))+cell(NW,s[0],"center")+cell(NW,s[1],"center")+cell(NW,s[2],"center")+cell(NW,s[3],"center")+cell(NW,s[4],"center")+cell(NW,c.gr,"center")+cell(NW,c.cli,"center")+cell(NW,c.pen||0,"center")+cell("60px",c.fn,"center",1)+cell("90px","Dr. "+esc(c.doc||"–")));
+  var s=c.sc||[],e=rowEl(cell("28px",i+1,"center")+cell("",esc(c.student))+cell("50px",esc(c.group||"–"),"center")+cell("",esc(c.patient))+cell(NW,s[0],"center")+cell(NW,s[1],"center")+cell(NW,s[2],"center")+cell(NW,s[3],"center")+cell(NW,s[4],"center")+cell(NW,c.gr,"center")+cell(NW,c.cli,"center")+cell(NW,c.pen||0,"center")+cell("60px",c.fn+(c.ex>0?" ★":""),"center",1)+cell("90px","Dr. "+esc(c.doc||"–")));
   if(!cu)np();cu.inn.appendChild(e);
   if(cu.inn.offsetHeight>LIM&&cu.inn.children.length>3){cu.inn.removeChild(e);np();cu.inn.appendChild(e)}});
  pages.forEach(function(p,i){var f=document.createElement("div");f.style.cssText="position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:11px";f.textContent="Page "+(i+1)+" of "+pages.length;p.pg.appendChild(f)});
@@ -3403,6 +3595,10 @@ $("#main").addEventListener("click",function(e){
  else if(a==="use"){sv("kc_act",id);view()}
  else if(a==="sgc"){strokes=[];var c=$("#sg");c.getContext("2d").clearRect(0,0,c.width,c.height)}
  else if(a==="acc")mkAcc();
+ else if(a==="sgset"){NEWNM=($("#an")||{}).value||"";sigEditor(function(sg){NEWSG=sg;view()})}
+ else if(a==="sgchg"){sigEditor(function(sg){var A=ACC(),x=A.filter(function(y){return y.id===id})[0];if(!x)return;x.sg=sg;x.sgv=nid();sv("kc_acc",A);view();var n=oldSigCases().length;toast(n?"Signature updated. "+n+" graded case"+(n>1?"s use":" uses")+" the old one. See the Cases tab.":"Signature updated.")},"Change signature")}
+ else if(a==="oldsig")oldSigReview();
+ else if(a==="upd")chkUpd(true);
  else if(a==="bk")backup();else if(a==="rs")restore();
  else if(a==="sd")detail(SL[+b.dataset.i]);else if(a==="sp")exportPdf([SL[+b.dataset.i]]);else if(a==="sall")exportPdf(SL);
 });
