@@ -52,6 +52,19 @@ The doctor who grades a case is the one whose signature is on it.
 
 ---
 
+## Group time table and group changes
+
+- **Students tab → Time table**: add each group's **day** and **time** (for example Group F · Monday · 10:30 AM – 12:30 PM). Early and late count from the exact start time (0 minutes) unless you set a few minutes of leeway there.
+- When you scan a Start QR, the app checks it against the table. **Wrong day**: the case is not started unless you press **Allow anyway** twice. **Early, late or after the group's time**: a notice stays on screen for 20 seconds, the group's end time is suggested in the timer step, and a note is kept next to the case.
+- If a student who already has a graded case comes with a **different group**, you can **Reject case** or **Confirm group change** by scanning the student's **Verify group change** QR (Profile). All that student's cases switch to the new group. You can also scan that QR any time with **Scan student QR** or **Students → Scan group change**.
+- A confirmed change travels with **Transfer** and **Sync**: the receiving doctor's earlier cases for that student are updated too, with a notice.
+
+## Sending a score to a student whose camera doesn't work
+
+In the score window (after **Save & share** or the **Share** button), tap **Send as image**. The app makes one picture with the QR, the student, patient, group, doctor, the score line and the **decoder code**, then opens your phone's share sheet (Bluetooth, AirDrop, Nearby Share, WhatsApp, Telegram and so on). **Save image** keeps a copy in your files, and **Copy image** lets you paste it into a chat on a computer.
+
+The student opens their app, taps **Scan score → From gallery**, picks the picture, and types the code. The picture contains the code, so send it only to that student. QR codes between doctors (transfer and sync) are unchanged.
+
 ## Several doctors working together
 
 ### Transfer ongoing cases (if a doctor has to leave)

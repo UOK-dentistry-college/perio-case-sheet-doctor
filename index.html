@@ -2798,6 +2798,8 @@ function caseStr(o){return["KC1",o.id,cl(o.student),cl(o.patient),cl(o.age),o.ge
 var CCL=["Bleeding","Halitosis","Dry mouth","Altered gingival appearance","Referral","Hypersensitivity","Mobility","Migration of teeth","Esthetic","Scaling","check up"];
 function startStr(o){return["KC2",o.id,cl(o.student),cl(o.patient),cl(o.age),o.gender||"",cl(o.group),o.cli,o.bop,(o.cc||[]).join(",")].join("|")}
 function parseStart(t){var p=String(t).split("|");if(p[0]!=="KC2"||p.length!==10)return null;return{id:p[1],student:p[2],patient:p[3],age:p[4],gender:p[5],group:p[6],cli:p[7],bop:p[8],cc:p[9]?p[9].split(",").map(Number).filter(function(i){return CCL[i]}).map(function(i){return CCL[i]}):[]}}
+function groupStr(o){return["KG1",o.id,cl(o.student),o.from,o.to,o.at].join("|")}
+function parseGroup(t){var p=String(t).split("|");if(p[0]!=="KG1"||p.length!==6)return null;if(!/^[A-Z]$/.test(p[3])||!/^[A-Z]$/.test(p[4])||p[3]===p[4]||!p[1]||!p[2].trim())return null;var at=parseInt(p[5],10);if(!(at>0))return null;return{id:p[1],student:p[2].trim(),from:p[3],to:p[4],at:at}}
 function parseCase(t){var p=String(t).split("|");if(p[0]!=="KC1"||p.length!==9)return null;return{id:p[1],student:p[2],patient:p[3],age:p[4],gender:p[5],group:p[6],cli:p[7],bop:p[8],str:t}}
 async function key(code,cs,doc,id){var m=await crypto.subtle.importKey("raw",te.encode(String(code).toUpperCase()+"|"+cs+"|"+doc),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt:te.encode(id),iterations:120000,hash:"SHA-256"},m,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
 function msg(cs,P,doc){return te.encode(cs+"|"+P.sc.join(",")+"|"+P.gr+"|"+P.fn+"|"+doc+(P.tk===undefined&&P.pn===undefined?"":"|"+P.tk+"|"+P.pn+"|"+P.lm)+(P.ex>0?"|x"+P.ex+"|a"+P.at:""))}
@@ -2879,7 +2881,7 @@ function scan(cb,keep){var seen={},alive=true,stream=null,bd=window.BarcodeDetec
  function loop(){if(!alive)return;if(v.videoWidth){var t=dec(v,v.videoWidth,v.videoHeight,false);if(t){if(!keep)return done(t);done(t)}}setTimeout(loop,120)}
  function fail(e){st.textContent=(e&&e.name==="NotAllowedError"?"This page isn’t allowed to use the camera here. ":"Live camera isn’t available. ")+"Use “Take photo” below."}
  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(s){if(!alive){s.getTracks().forEach(function(t){t.stop()});return}stream=s;v.srcObject=s;v.play();st.textContent="Point the camera at the QR code.";loop()}).catch(fail);else fail()}
-return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan,calPick:calPick,sigEnc2:sigEnc2,sigEnc3:sigEnc3}
+return{CCL:CCL,startStr:startStr,parseStart:parseStart,b64:b64,unb64:unb64,rid:rid,rcode:rcode,caseStr:caseStr,groupStr:groupStr,parseGroup:parseGroup,parseCase:parseCase,seal:seal,parseScore:parseScore,verify:verify,open:open,fp:fp,newKeys:newKeys,importPriv:importPriv,sigEnc:sigEnc,sigSvg:sigSvg,sigPng:sigPng,qrSvg:qrSvg,modal:modal,scan:scan,calPick:calPick,sigEnc2:sigEnc2,sigEnc3:sigEnc3}
 })();
 var KL=(function(){
 var S0=function(){return{q:"",f:{},sort:"time",dir:-1,sel:{},mode:false,open:false,bundle:"",vis:[]}},STS={cases:S0(),folders:S0()},st=STS.cases,ctx,bar,list;
@@ -3034,7 +3036,7 @@ function renderList(){
   if(c.xfrom&&st!=="done")tm+='<div class="m">↪ Transferred from Dr. '+esc(c.xfrom)+'</div>';if(st==="running")bt+='<button class="b" data-a="stop" data-id="'+c.id+'">Stop</button>';
   if(st==="paused")bt+='<button class="b" data-a="resume" data-id="'+c.id+'">Resume</button>';
   if(c.fromStart&&c.t0==null&&st!=="done")bt+='<button class="b p" data-a="tstart" data-id="'+c.id+'">Start timer</button>';
-  h+='<div class="card">'+KL.chk(c.id)+'<b dir="auto">'+esc(c.patient)+'</b> <span class="m">· '+esc(c.age)+' · '+esc(c.gender)+'</span><div class="m" dir="auto">Student: '+esc(c.student)+' · Group '+esc(c.group)+(c.cli!==""&&c.cli!=null?' · CLI '+esc(c.cli)+' · BOP '+esc(c.bop)+'%':"")+'</div>'+(c.cc&&c.cc.length?'<div class="m" dir="auto">Chief complaint: '+esc(c.cc.join(", "))+'</div>':"")+tm+
+  h+='<div class="card">'+KL.chk(c.id)+'<b dir="auto">'+esc(c.patient)+'</b> <span class="m">· '+esc(c.age)+' · '+esc(c.gender)+'</span><div class="m" dir="auto">Student: '+esc(c.student)+' · Group '+esc(c.group)+(c.cli!==""&&c.cli!=null?' · CLI '+esc(c.cli)+' · BOP '+esc(c.bop)+'%':"")+'</div>'+gnLine(c)+(c.cc&&c.cc.length?'<div class="m" dir="auto">Chief complaint: '+esc(c.cc.join(", "))+'</div>':"")+tm+
   (c.fn!=null?'<div style="margin-top:4px"><b>Final: '+c.fn+(c.ex>0?" ⭐":"")+'</b> <span class="m">by Dr. '+esc(c.doc)+'</span></div>'+(c.ex>0?'<div class="m" style="color:#92400e">⭐ Includes +'+c.ex+' extra score</div>':"")+(oldSig(c)?'<div class="m" style="color:#b45309">⚠ Graded with your old signature · re-share to update</div>':""):'<div class="m" style="margin-top:4px">Not scored yet</div>')+
   '<div class="row">'+bt+(own(c)?'<button class="b p" data-a="open" data-id="'+c.id+'">'+(c.fn!=null?"Edit score":act?"Grade":"Score")+'</button>'+(c.fn!=null?'<button class="b" data-a="share" data-id="'+c.id+'">Share</button>':""):'<span class="m">Read only · graded by another doctor</span>')+'<button class="b d" data-a="del" data-id="'+c.id+'">Delete</button></div></div>'});
  $("#klist").innerHTML=h||'<div class="card m">'+(all.length?"No matching cases.":"No cases yet. Scan a student’s QR code to start.")+'</div>';
@@ -3098,12 +3100,12 @@ function sessEnd(s,now){var d=new Date(now);d.setHours(s[0],s[1],0,0);return d.g
 function sessNext(now){for(var i=0;i<SESS.length;i++)if(sessEnd(SESS[i],now)-now>=60000)return i;return -1}
 function startTimer(id){
  var c=getCase(id);if(!c)return;var dur=ld("kc_dur",120),now0=Date.now(),sel=sessNext(now0),tabv="cd",tm=null;if(sel<0)sel=3;
- var dn=new Date(now0+30*60000);dn.setMinutes(dn.getMinutes()<30?30:60,0,0);var dh=dn.getHours(),dmn=dn.getMinutes();
+ var dn=new Date(now0+30*60000);dn.setMinutes(dn.getMinutes()<30?30:60,0,0);var dh=dn.getHours(),dmn=dn.getMinutes();var gk=gCheck(c.group,now0),sug=null;if(gk.has&&gk.e&&gk.k!=="day"&&gk.k!=="after"){var se=new Date(now0);se.setHours(Math.floor(gk.e.e/60),gk.e.e%60,0,0);if(se.getTime()-now0>=60000){sug=gk;dh=Math.floor(gk.e.e/60);dmn=gk.e.e%60;sel=3;for(var si=0;si<3;si++)if(SESS[si][0]*60+SESS[si][1]===gk.e.e)sel=si}}
  var sb=SESS.map(function(s,i){return'<button class="b" data-s="'+i+'" style="flex:1;padding:12px 2px;font-size:calc(15px / var(--fz,1))">'+s[2]+'</button>'}).join("")+'<button class="b" data-s="3" style="flex:1;padding:12px 2px;font-size:calc(15px / var(--fz,1))">Custom</button>';
  var SL='padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:calc(16px / var(--fz,1));background:#fff;color:#111;flex:1;min-width:0',ho="",mo="";for(var i=1;i<=12;i++)ho+='<option'+(i===((dh%12)||12)?" selected":"")+'>'+i+'</option>';for(i=0;i<60;i++)mo+='<option value="'+i+'"'+(i===dmn?" selected":"")+'>'+("0"+i).slice(-2)+'</option>';
- var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div class="row" style="margin:0 0 10px"><button class="b" data-tab="cd" style="flex:1">Countdown</button><button class="b" data-tab="sw" style="flex:1">Duration</button></div><div data-pcd><div class="m" style="margin-bottom:6px">Count down to:</div><div class="row" style="margin:0;gap:5px">'+sb+'</div><div data-cu style="display:none;margin-top:8px"><div class="row" style="margin:0;gap:6px"><select data-ch style="'+SL+'">'+ho+'</select><b>:</b><select data-cm style="'+SL+'">'+mo+'</select><select data-cap style="'+SL+'"><option'+(dh<12?" selected":"")+'>AM</option><option'+(dh>=12?" selected":"")+'>PM</option></select></div></div><div data-pv style="margin-top:10px;font-size:calc(16px / var(--fz,1))"></div></div><div data-psw style="display:none"><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.round(dur%60)+'"></div></div><div class="row"><button class="b p" data-go style="flex:1">Start timer</button></div>',function(){clearInterval(tm)}),q=function(s){return m.el.querySelector(s)};
+ var m=KC.modal('<b>Start timer</b><div class="m" dir="auto" style="margin:4px 0 8px">'+esc(c.student)+' · Group '+esc(c.group)+' · patient '+esc(c.patient)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div><div class="m" dir="auto" style="margin-bottom:8px">Chief complaint: '+esc((c.cc||[]).join(", ")||"–")+'<br>BOP '+esc(c.bop)+'% · Calculus '+esc(c.cli)+'</div><div data-gb></div><div class="row" style="margin:0 0 10px"><button class="b" data-tab="cd" style="flex:1">Countdown</button><button class="b" data-tab="sw" style="flex:1">Duration</button></div><div data-pcd><div class="m" style="margin-bottom:6px">Count down to:</div><div class="row" style="margin:0;gap:5px">'+sb+'</div><div data-cu style="display:none;margin-top:8px"><div class="row" style="margin:0;gap:6px"><select data-ch style="'+SL+'">'+ho+'</select><b>:</b><select data-cm style="'+SL+'">'+mo+'</select><select data-cap style="'+SL+'"><option'+(dh<12?" selected":"")+'>AM</option><option'+(dh>=12?" selected":"")+'>PM</option></select></div></div><div data-pv style="margin-top:10px;font-size:calc(16px / var(--fz,1))"></div></div><div data-psw style="display:none"><div class="sc"><label>Hours</label><input id="th" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.floor(dur/60)+'"></div><div class="sc"><label>Minutes</label><input id="tn" type="text" dir="ltr" lang="en" inputmode="numeric" min="0" value="'+Math.round(dur%60)+'"></div></div><div class="row"><button class="b p" data-go style="flex:1">Start timer</button></div>',function(){clearInterval(tm)}),q=function(s){return m.el.querySelector(s)};
  function SG(i){if(i<3)return SESS[i];var h12=+q("[data-ch]").value,mm=+q("[data-cm]").value,ap=q("[data-cap]").value;return[h12%12+(ap==="PM"?12:0),mm,h12+":"+("0"+mm).slice(-2)+" "+ap]}
- function upd(){var now=Date.now();
+ function upd(){var now=Date.now();q("[data-gb]").innerHTML=gBox(c,now);
   [].forEach.call(m.el.querySelectorAll("[data-s]"),function(b){var i=+b.dataset.s,past=i<3&&sessEnd(SESS[i],now)-now<60000;b.disabled=past;b.style.opacity=past?".4":"1";b.className=(i===sel?"b p":"b")});
   [].forEach.call(m.el.querySelectorAll("[data-tab]"),function(b){b.className=b.dataset.tab===tabv?"b p":"b"});
   q("[data-pcd]").style.display=tabv==="cd"?"":"none";q("[data-psw]").style.display=tabv==="sw"?"":"none";q("[data-cu]").style.display=sel===3?"":"none";
@@ -3118,6 +3120,7 @@ function startTimer(id){
   if(tabv==="cd"){var s=SG(sel),end=sessEnd(s,now);if(end-now<60000){toast("That time has passed. Pick a later one.");return}mins=Math.round((end-now)/1000)/60;sess=s[2]}
   else{mins=(parseInt(q("#th").value)||0)*60+(parseInt(q("#tn").value)||0);if(mins<1){toast("Set a time limit of at least 1 minute.");return}sv("kc_dur",mins)}
   var c2=getCase(id);Object.assign(c2,{state:"running",t0:now,dur:mins,pt:0,p0:null});if(sess)c2.sess=sess;else delete c2.sess;
+  var g2=gCheck(c2.group,now),n2=g2.has?gMk(g2):null;if(c2.gn){if(c2.gn.c){n2=n2||{};n2.c=c2.gn.c}if(n2&&n2.k==="day"&&c2.gn.k==="day"&&c2.gn.a)n2.a=1}if(n2)c2.gn=n2;else delete c2.gn;
   putCase(c2);clearInterval(tm);m.close();view();toast("Timer started."+(sess?" Counting down to "+sess+".":""))};
  upd();tm=setInterval(upd,1000);
 }
@@ -3126,7 +3129,7 @@ function editor(id){
  var c=getCase(id);if(!c)return;if(c.state==="transferred"){toast("This case was transferred to another doctor.");return}if(!own(c)){toast("Graded by Dr. "+c.doc+". Only they can edit it.");return}var now=Date.now(),timed=c.t0!=null,done=c.state==="done",saved=false;
  if(c.state==="running"){c.prev="running";c.state="grading";c.p0=now;putCase(c)}else if(c.state==="paused"){c.prev="paused";c.state="grading";putCase(c)}
  var ro=!!c.fromStart&&c.cli!==""&&c.cli!=null,el=timed?elapsed(c,now):0,lim=(c.dur||0)*60000,om=timed?overMin(c,el):0,rate=c.rate!=null?c.rate:0.3,pen0=done&&c.pen!=null?c.pen:r1(om*rate),pOn=done?c.penOn!==false:om>0;
- var h='<b dir="auto">'+esc(c.patient)+'</b><div class="m" dir="auto">'+esc(c.student)+' · Group '+esc(c.group)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div>';
+ var h='<b dir="auto">'+esc(c.patient)+'</b><div class="m" dir="auto">'+esc(c.student)+' · Group '+esc(c.group)+' · '+esc(c.age)+' · '+esc(c.gender)+'</div>'+gnLine(c);
  if(timed)h+='<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px;background:#f6f6f2"><b>⏱ Time</b><div>Taken <b>'+fmtT(el)+'</b> · limit '+fmtT(lim)+'</div><div class="'+(om?"no":"ok")+'">'+(om?"Over by "+om+" min":"Within the limit")+'</div><div class="sc"><label><input type="checkbox" id="pa" style="width:auto"'+(pOn?" checked":"")+'> Apply penalty</label><span></span></div><div class="sc"><label>Penalty per minute</label><input id="pr" type="text" dir="ltr" lang="en" step="0.1" min="0" value="'+rate+'"></div><div class="sc"><label>Penalty (points)</label><input id="pp" type="text" dir="ltr" lang="en" step="0.1" min="0" value="'+pen0+'"></div></div>';
  h+='<div class="sc"><label>BOP %'+(ro?' <span class="m">(from the start QR)</span>':'')+'</label><input id="kb" type="text" dir="ltr" lang="en" inputmode="decimal" step="0.1"'+(ro?" readonly":"")+' value="'+(c.bop!==""&&c.bop!=null?esc(c.bop):"")+'"></div><div class="sc"><label>Calculus score</label><input id="kc" type="text" dir="ltr" lang="en" inputmode="decimal" step="0.1"'+(ro?" readonly":"")+' value="'+(c.cli!==""&&c.cli!=null?esc(c.cli):"")+'"></div>'+(ro?"":'<div class="row"><button class="b" data-sq style="flex:1">Scan the student’s QR to fill these</button></div>');
  N.forEach(function(n,i){h+='<div class="sc"><label>'+n+' <span class="m">/ '+M[i]+'</span></label><input type="text" dir="ltr" lang="en" inputmode="decimal" min="0" max="'+M[i]+'" data-i="'+i+'" value="'+(c.sc?c.sc[i]:"")+'"></div>'});
@@ -3148,12 +3151,49 @@ function editor(id){
   putCase(c2);saved=true;m.close();view();if(b.dataset.s==="2")share(id);else toast("Saved.");
  });
 }
+/* ===== QR as an image: for students whose camera doesn’t work ===== */
+var QF="Calibri,Carlito,Arial,sans-serif";
+function iso(s){return"\u2068"+String(s==null?"":s)+"\u2069"}
+function qrWrap(cx,txt,max){var w=String(txt).split(/\s+/),L=[],cur="";w.forEach(function(x){var t=cur?cur+" "+x:x;if(cx.measureText(t).width>max&&cur){L.push(cur);cur=x}else cur=t});if(cur)L.push(cur);return L}
+function qrFit(cx,txt,max,size,min,wt){while(size>min){cx.font=wt+" "+size+"px "+QF;if(cx.measureText(txt).width<=max)break;size-=2}cx.font=wt+" "+size+"px "+QF;return size}
+function qrLay(cx,o,img,draw){
+ var W=1200,P=70,QS=1000,y=60,i,T=function(t,x,yy){if(draw)cx.fillText(t,x,yy)};
+ cx.textAlign="center";cx.textBaseline="alphabetic";try{cx.direction="ltr"}catch(e){}
+ cx.font="700 34px "+QF;cx.fillStyle="#0f766e";y+=34;T("Perio Supervisor",W/2,y);y+=26;
+ cx.fillStyle="#111";var sz=qrFit(cx,o.title,W-2*P,64,30,"700");y+=sz;T(o.title,W/2,y);y+=18;
+ cx.fillStyle="#444";(o.lines||[]).forEach(function(l){qrFit(cx,l,W-2*P,38,22,"400");y+=52;T(l,W/2,y)});
+ y+=34;if(draw)cx.drawImage(img,(W-QS)/2,y,QS,QS);y+=QS+40;
+ cx.fillStyle="#555";cx.font="36px "+QF;y+=36;T("Decoder code",W/2,y);y+=20;
+ var code=String(o.code||""),cs=110,gap=16,ws=[],cw=0,MF="ui-monospace,Menlo,Consolas,monospace";
+ cx.font="700 "+cs+"px "+MF;for(i=0;i<code.length;i++){ws[i]=cx.measureText(code[i]).width;cw+=ws[i]}cw+=gap*Math.max(0,code.length-1);
+ var bw=cw+90,bh=cs+70;
+ if(draw){cx.strokeStyle="#0f766e";cx.lineWidth=6;cx.strokeRect((W-bw)/2,y,bw,bh);cx.fillStyle="#111";cx.textAlign="left";var x=(W-cw)/2;for(i=0;i<code.length;i++){cx.fillText(code[i],x,y+bh/2+cs*0.34);x+=ws[i]+gap}cx.textAlign="center"}
+ y+=bh+44;
+ if(o.foot){cx.fillStyle="#111";var fz=qrFit(cx,o.foot,W-2*P,42,22,"700");y+=fz;T(o.foot,W/2,y);y+=26}
+ cx.fillStyle="#666";cx.font="30px "+QF;qrWrap(cx,o.hint||"",W-2*P).forEach(function(l){y+=40;T(l,W/2,y)});
+ return y+56}
+async function qrCard(o){
+ var QS=1000,img=await new Promise(function(res,rej){var i=new Image();i.onload=function(){res(i)};i.onerror=function(){rej(new Error("qr"))};i.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(o.qr.replace('style="width:100%;display:block"','width="'+QS+'" height="'+QS+'"'))});
+ var cv=document.createElement("canvas"),cx=cv.getContext("2d");cv.width=1200;cv.height=100;
+ var H=qrLay(cx,o,img,false);cv.width=1200;cv.height=H;cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,1200,H);qrLay(cx,o,img,true);
+ return await new Promise(function(res,rej){cv.toBlob(function(b){b?res(b):rej(new Error("png"))},"image/png")})}
+function qrImgRow(){return'<div class="row" style="flex-wrap:wrap;gap:6px"><button class="b p" data-qimg style="flex:1 1 100%">Send as image</button><button class="b" data-qsv style="flex:1">Save image</button>'+(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write?'<button class="b" data-qcp style="flex:1">Copy image</button>':"")+'</div><div class="m" style="text-align:center;margin-top:6px">Student’s camera not working? Send this image by Bluetooth, AirDrop or any chat app. In the student app they tap <b>Scan score → From gallery</b>.</div>'}
+function qrImgWire(el,o,fn){
+ var q=function(s){return el.querySelector(s)},file=null,prep=qrCard(o).then(function(b){file=new File([b],fn,{type:"image/png"});return file}).catch(function(){return null});
+ async function get(){var f=file||await prep;if(!f)toast("Couldn’t make the image.");return f}
+ q("[data-qimg]").onclick=async function(){var f=await get();if(!f)return;var can=false;try{can=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}))}catch(e){}
+  if(can){try{await navigator.share({files:[f],title:o.title})}catch(e){if(e&&e.name!=="AbortError")toast("Couldn’t open the share sheet. Use Save image.")}}
+  else{await saveBlob(f,fn);toast("Image saved. Send it to the student.")}};
+ q("[data-qsv]").onclick=async function(){var f=await get();if(!f)return;await saveBlob(f,fn);toast("Image saved.")};
+ var cp=q("[data-qcp]");if(cp)cp.onclick=async function(){var f=await get();if(!f)return;try{await navigator.clipboard.write([new ClipboardItem({"image/png":f})]);toast("Image copied. Paste it in a chat.")}catch(e){toast("Couldn’t copy. Use Save image.")}}}
 async function share(id){
  var a=active(),c=getCase(id);if(!a||!c||c.fn==null){toast("Score the case first.");return}
  var code=KC.rcode(),t;
  try{var P={sc:c.sc,gr:c.gr,fn:c.fn,sg:a.sg,pk:a.pub,at:c.ts};if(c.ex>0)P.ex=c.ex;if(c.tk!=null){P.tk=c.tk;P.pn=c.pen||0;P.lm=c.lm}
   t=await KC.seal(c.str,c.id,a.name,P,code,await KC.importPriv(a.priv));c.sgv=a.sgv||"0";putCase(c);view();
-  KC.modal('<b dir="auto">Score for '+esc(c.patient)+'</b><div style="max-width:340px;margin:8px auto">'+KC.qrSvg(t,"L")+'</div><div class="m" style="text-align:center">Decoder code. Give it to the student with the QR.</div><div class="code">'+code+'</div><div class="m" style="text-align:center">Final '+c.fn+(c.ex>0?' ⭐ (+'+c.ex+' extra)':"")+(c.tk!=null?' · time '+fmtT(c.tk)+(c.pen?' · penalty −'+c.pen:""):"")+' · Dr. '+esc(a.name)+'</div>')}
+  var fl='Final '+c.fn+(c.ex>0?' ⭐ (+'+c.ex+' extra)':"")+(c.tk!=null?' · time '+fmtT(c.tk)+(c.pen?' · penalty −'+c.pen:""):"")+' · Dr. '+iso(a.name);
+  var m=KC.modal('<b dir="auto">Score for '+esc(c.patient)+'</b><div style="max-width:340px;margin:8px auto">'+KC.qrSvg(t,"L")+'</div><div class="m" style="text-align:center">Decoder code. Give it to the student with the QR.</div><div class="code">'+code+'</div><div class="m" style="text-align:center">'+esc(fl)+'</div>'+qrImgRow());
+  qrImgWire(m.el,{title:"Score for "+iso(c.patient),lines:["For: "+iso(c.student)+" · Group "+(c.group||"–"),"Dr. "+iso(a.name)+" · "+dmy(Date.now())],qr:KC.qrSvg(t,"L"),code:code,foot:fl,hint:"Student app → Scan score → From gallery → choose this image, then type the decoder code."},"perio-score-"+ymd()+"-"+String(c.id).slice(0,4)+".png")}
  catch(e){toast("Couldn’t build the score QR.")}
 }
 var MIN=1000,MAX=2000,sq="",ssort="name",SL=[];
@@ -3163,7 +3203,7 @@ function studs(){var m={};CAS().forEach(function(c){if(c.state==="transferred")r
 function stat(t){return t<MIN?{c:"no",t:"Not passed",d:"needs "+r1(MIN-t)+" more"}:t>MAX?{c:"wa",t:"Passed · above the maximum",d:"exceeds "+MAX+" by "+r1(t-MAX)}:{c:"ok",t:"Passed",d:""}}
 function dmy(ts){var t=new Date(ts),p=function(n){return("0"+n).slice(-2)};return p(t.getDate())+"/"+p(t.getMonth()+1)+"/"+t.getFullYear()}
 function vStudents(){
- return '<div class="card"><input id="sq" dir="auto" placeholder="Search student name or group" value="'+esc(sq)+'"><div class="row"><select id="ss" class="in" style="flex:1;padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:calc(15px / var(--fz,1));background:#fff"><option value="name">Sort: Name A–Z</option><option value="hi">Sort: Total, high to low</option><option value="lo">Sort: Total, low to high</option><option value="fail">Sort: Not passed first</option></select><button class="b p" data-a="sall">Export PDF</button></div><div class="m" id="ssum" style="margin-top:8px"></div></div><div id="slist"></div>';
+ return '<div class="card"><input id="sq" dir="auto" placeholder="Search student name or group" value="'+esc(sq)+'"><div class="row"><select id="ss" class="in" style="flex:1;padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:calc(15px / var(--fz,1));background:#fff"><option value="name">Sort: Name A–Z</option><option value="hi">Sort: Total, high to low</option><option value="lo">Sort: Total, low to high</option><option value="fail">Sort: Not passed first</option></select><button class="b p" data-a="sall">Export PDF</button></div><div class="row"><button class="b" data-a="tt" style="flex:1">Time table</button><button class="b" data-a="gscan" style="flex:1">Scan group change</button></div><div class="m" id="ssum" style="margin-top:8px"></div></div><div id="slist"></div>';
 }
 function renderStudents(){
  var q=sq.trim().toLowerCase(),all=studs(),L=all.filter(function(s){return!q||(s.name+" "+s.group).toLowerCase().indexOf(q)>=0});
@@ -3241,7 +3281,7 @@ function askPw(title,btn,cb){
  b.onclick=async function(){var p=m.el.querySelector("#pw").value;if(p.length<6){e.textContent="Use at least 6 characters.";return}b.disabled=true;b.textContent="Working…";var err=await cb(p);if(err){e.textContent=err;b.disabled=false;b.textContent=btn}else m.close()}}
 function backup(){
  askPw("Export backup","Export",async function(pw){
-  try{var txt=await bkEnc(pw,{cases:CAS(),accounts:ACC(),bundles:getB(),active:ld("kc_act",null),at:Date.now()});await saveFile(txt,"perio-supervisor-backup-"+ymd()+".json");sv("kc_last",ymd());view();toast("Backup exported.");return""}
+  try{var txt=await bkEnc(pw,{cases:CAS(),accounts:ACC(),bundles:getB(),active:ld("kc_act",null),tt:TT(),tts:ld("kc_tts",null),gch:ld("kc_gch",[]),at:Date.now()});await saveFile(txt,"perio-supervisor-backup-"+ymd()+".json");sv("kc_last",ymd());view();toast("Backup exported.");return""}
   catch(e){return"Couldn’t save the file."}});
 }
 function bkSel(ids,label){
@@ -3258,7 +3298,7 @@ function restore(){
    var cs=CAS(),ac=ACC(),nc=0,na=0;
    (d.cases||[]).forEach(function(c){var k=cs.findIndex(function(x){return x.id===c.id});if(k<0){cs.push(c);nc++}else if((c.ts||0)>(cs[k].ts||0)){cs[k]=c;nc++}});
    (d.accounts||[]).forEach(function(a){if(!ac.some(function(x){return x.id===a.id})){ac.push(a);na++}});
-   sv("kc_cas",cs);sv("kc_acc",ac);setB(KL.merge(getB(),d.bundles));if(!ld("kc_act",null)&&d.active)sv("kc_act",d.active);view();toast("Restored "+nc+" cases and "+na+" accounts.");return""})};r.readAsText(f)};
+   sv("kc_cas",cs);sv("kc_acc",ac);setB(KL.merge(getB(),d.bundles));(function(){var T=TT();(d.tt||[]).forEach(function(x){if(x&&x.g&&!T.some(function(y){return y.g===x.g&&y.d===x.d&&y.s===x.s&&y.e===x.e}))T.push(x)});setTT(T);if(d.tts&&!ld("kc_tts",null))sv("kc_tts",d.tts);var G=ld("kc_gch",[]);(d.gch||[]).forEach(function(x){if(x&&x.id&&!G.some(function(y){return y.id===x.id}))G.push(x)});sv("kc_gch",G)})();if(!ld("kc_act",null)&&d.active)sv("kc_act",d.active);view();toast("Restored "+nc+" cases and "+na+" accounts.");return""})};r.readAsText(f)};
  i.click();
 }
 /* ===== signature editor (draw or photo) ===== */
@@ -3371,8 +3411,152 @@ function oldSigReview(){
 }
 (function(){var s=document.createElement("style");s.textContent=".sg svg{width:100%;height:100%;display:block}";document.head.appendChild(s)})();
 
+/* ===== group time table, group knower, group changes ===== */
+var DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],NOTE_MS=20000;
+function TT(){var a=ld("kc_tt",[]);return Array.isArray(a)?a:[]}
+function setTT(a){sv("kc_tt",a)}
+function TTS(){var s=ld("kc_tts",{})||{};return{e:s.e>=0?s.e:0,l:s.l>=0?s.l:0}}
+function skey(n){return String(n||"").trim().toLowerCase()}
+function m12(m){var h=Math.floor(m/60),mm=m%60;return(h%12||12)+":"+("0"+mm).slice(-2)+" "+(h<12?"AM":"PM")}
+function ttRange(e){return m12(e.s)+" – "+m12(e.e)}
+function gCheck(group,now){
+ var g=String(group||"").trim().toUpperCase(),L=TT().filter(function(x){return x.g===g}).sort(function(a,b){return a.d-b.d||a.s-b.s});
+ if(!L.length)return{has:false,g:g};
+ var S=TTS(),d=new Date(now),dow=d.getDay(),nm=d.getHours()*60+d.getMinutes(),T=L.filter(function(x){return x.d===dow}),i,e=null;
+ if(!T.length)return{has:true,k:"day",g:g,dow:dow,L:L};
+ for(i=0;i<T.length;i++)if(nm>=T[i].s-S.e&&nm<=T[i].e){e=T[i];break}
+ if(e)return nm<=e.s+S.l?{has:true,k:"ok",g:g,e:e,min:0,L:L}:{has:true,k:"late",g:g,e:e,min:nm-e.s,L:L};
+ for(i=0;i<T.length;i++)if(T[i].s>nm)return{has:true,k:"early",g:g,e:T[i],min:T[i].s-nm,L:L};
+ e=T[T.length-1];return{has:true,k:"after",g:g,e:e,min:nm-e.e,L:L};
+}
+function gMk(ck){return{k:ck.k,g:ck.g,s:ck.e?ck.e.s:null,e:ck.e?ck.e.e:null,m:ck.min||0}}
+function gnInfo(n){
+ if(!n)return null;var r=n.s!=null?" ("+ttRange(n)+")":"",t="",c="#0f766e";
+ if(n.k==="early"){t="⏰ Started "+n.m+" min early"+r;c="#b45309"}
+ else if(n.k==="late"){t="⏰ Started "+n.m+" min late"+r;c="#b45309"}
+ else if(n.k==="after"){t="⏰ Started "+n.m+" min after the group’s time ended"+r;c="#b91c1c"}
+ else if(n.k==="day"){t="📅 Not group "+esc(n.g)+"’s day"+(n.a?" · allowed by the doctor":"");c="#b91c1c"}
+ else if(n.k==="ok"){t="✓ Started on time"+r;c="#15803d"}
+ if(n.c)t+=(t?" · ":"")+"↻ Group changed "+esc(n.c[0])+" → "+esc(n.c[1])+" (verified)";
+ return t?{t:t,c:c}:null}
+function gnLine(c){var i=gnInfo(c.gn);return i?'<div class="m" dir="auto" style="color:'+i.c+';font-weight:600">'+i.t+'</div>':""}
+function gBox(c,now){
+ var gk=gCheck(c.group,now);if(!gk.has)return"";
+ var col="#b45309",h="";
+ if(gk.k==="day"){col="#b91c1c";h='<div>Not this group’s day today.</div>';var ad=c.gn?gnInfo(c.gn):null;if(ad)h+='<div class="m" style="margin-top:2px">When scanned: '+ad.t+'</div>'}
+ else{
+  var lv={early:["⏰ Now: "+gk.min+" min before the group’s start","#b45309"],ok:["✓ Now: on time","#15803d"],late:["⏰ Now: "+gk.min+" min after the group’s start","#b45309"],after:["⏰ Now: the group’s time ended "+gk.min+" min ago","#b91c1c"]}[gk.k];
+  col=lv[1];h='<div>Today: '+ttRange(gk.e)+'</div><div style="color:'+lv[1]+';font-weight:600">'+lv[0]+'</div>';
+  var ai=c.gn?gnInfo(c.gn):null;if(ai)h+='<div class="m" style="margin-top:2px">When scanned: '+ai.t+'</div>';
+  var se=new Date(now);se.setHours(Math.floor(gk.e.e/60),gk.e.e%60,0,0);
+  h+=se.getTime()-now>=60000?'<div style="margin-top:4px">Suggested end time: <b>'+m12(gk.e.e)+'</b></div>':'<div class="m" style="margin-top:4px">The group’s time has ended, so choose the end time yourself.</div>'}
+ return'<div dir="auto" style="margin:0 0 8px;padding:8px;border:2px solid '+col+';border-radius:10px;background:#fffbeb"><b>Group '+esc(gk.g)+' · time table</b>'+h+'</div>'}
+var BN=null;
+function bigNote(html,col,ms){
+ if(BN){clearTimeout(BN._t);if(BN.parentNode)BN.parentNode.removeChild(BN);BN=null}
+ ms=ms||NOTE_MS;col=col||"#b45309";
+ var d=document.createElement("div");
+ d.style.cssText="position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);width:min(94vw,460px);box-sizing:border-box;z-index:90;background:#fff;color:#111;border:3px solid "+col+";border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.35);padding:10px 12px 16px;font-size:calc(15px / var(--fz,1))";
+ d.innerHTML='<div style="display:flex;gap:8px;align-items:flex-start"><div style="flex:1;min-width:0" dir="auto">'+html+'</div><button data-bx aria-label="Close" style="border:0;background:#eee;color:#111;border-radius:50%;width:32px;height:32px;font:inherit;cursor:pointer;flex:none">×</button></div><div style="position:absolute;left:0;right:0;bottom:0;height:6px;background:#eee;border-radius:0 0 9px 9px;overflow:hidden"><i data-bp style="display:block;height:100%;width:100%;background:'+col+';transition:width '+ms+'ms linear"></i></div>';
+ document.body.appendChild(d);BN=d;
+ var done=function(){clearTimeout(d._t);if(d.parentNode)d.parentNode.removeChild(d);if(BN===d)BN=null};
+ d.querySelector("[data-bx]").onclick=done;
+ requestAnimationFrame(function(){requestAnimationFrame(function(){var q=d.querySelector("[data-bp]");if(q)q.style.width="0%"})});
+ d._t=setTimeout(done,ms);return d}
+function gnBig(s2,ck){
+ var n=esc(s2.student)+" · Group "+esc(ck.g),r=ttRange(ck.e);
+ if(ck.k==="early")return"<b>Started early</b><br>"+n+"<br>The group’s time is <b>"+r+"</b>. This student came <b>"+ck.min+" min early</b>.<br>Suggested end time: <b>"+m12(ck.e.e)+"</b> (it is selected for you in the next step).";
+ if(ck.k==="late")return"<b>Started late</b><br>"+n+"<br>The group’s time is <b>"+r+"</b>. This student came <b>"+ck.min+" min after the start</b>.<br>Suggested end time: <b>"+m12(ck.e.e)+"</b> (it is selected for you in the next step).";
+ return"<b>Outside the group’s time</b><br>"+n+"<br>The group’s time (<b>"+r+"</b>) ended <b>"+ck.min+" min ago</b>. Choose the end time yourself."}
+/* ---- group changes ---- */
+function prevGrp(student){var k=skey(student),L=CAS().filter(function(c){return c.state!=="transferred"&&c.fn!=null&&skey(c.student)===k&&c.group}).sort(function(a,b){return(b.ts||0)-(a.ts||0)});return L.length?{g:L[0].group,n:L.length,ts:L[0].ts}:null}
+function gcLatest(student){var k=skey(student),r=null;ld("kc_gch",[]).forEach(function(x){if(skey(x.student)===k&&(!r||x.at>r.at))r=x});return r}
+function gcApply(student,from,to,id,by,at){
+ var l=CAS(),k=skey(student),n=0;
+ l.forEach(function(c){if(c.state==="transferred"||skey(c.student)!==k||c.group===to)return;c.group=to;c.str=sstr(c);n++});
+ if(n)sv("kc_cas",l);
+ var G=ld("kc_gch",[]);if(!G.some(function(x){return x.id===id})){G.push({id:id,student:String(student).trim(),from:from,to:to,at:at||Date.now(),by:by||""});sv("kc_gch",G.slice(-300))}
+ return n}
+function gcFor(c){var k=skey(c.student),G=ld("kc_gch",[]),r=null;G.forEach(function(x){if(skey(x.student)===k&&x.to===c.group&&(!r||x.at>r.at))r=x});return r?[r.from,r.to,r.at,r.id,r.by||""]:0}
+function gcIn(list){
+ if(!list||!list.length)return;var seen={},msgs=[];
+ list.forEach(function(x){var g=x.gc;if(!g||g[1]!==x.group||!x.student)return;var key=skey(x.student)+"|"+g[3];if(seen[key])return;seen[key]=1;
+  var L=gcLatest(x.student);if(L&&L.at>g[2]&&L.id!==g[3])return;
+  var n=gcApply(x.student,g[0],g[1],g[3],g[4],g[2]);
+  if(n>0)msgs.push('<b dir="auto">'+esc(x.student)+'</b>: Group '+esc(g[0])+' → <b>'+esc(g[1])+'</b> · '+n+' earlier case'+(n>1?"s":"")+' updated'+(g[4]?' (confirmed by Dr. '+esc(g[4])+')':""))});
+ if(msgs.length){bigNote("<b>Group change received</b><br>"+msgs.join("<br>"),"#0f766e",NOTE_MS);view()}}
+function gcConfirm(g,cb){
+ var k=skey(g.student),cs=CAS().filter(function(c){return c.state!=="transferred"&&skey(c.student)===k}),n=cs.filter(function(c){return c.group!==g.to}).length,gs={};
+ cs.forEach(function(c){if(c.group)gs[c.group]=1});var gl=Object.keys(gs).sort();
+ var m=KC.modal('<b>Confirm group change</b><div dir="auto" style="margin:6px 0"><b>'+esc(g.student)+'</b></div><div>The student says: Group <b>'+esc(g.from)+'</b> → <b>'+esc(g.to)+'</b></div><div class="m" style="margin:6px 0">Your records: '+(gl.length?"Group "+esc(gl.join(", ")):"no cases yet")+' · <b>'+n+'</b> case'+(n===1?"":"s")+' will change to Group '+esc(g.to)+'.</div><div class="row"><button class="b" data-no style="flex:1">Cancel</button><button class="b p" data-ok style="flex:1">Confirm</button></div>');
+ m.el.querySelector("[data-no]").onclick=function(){m.close()};
+ m.el.querySelector("[data-ok]").onclick=function(){var a=active(),pv=gcLatest(g.student);m.close();var c=gcApply(g.student,g.from,g.to,g.id,a?a.name:"",g.at);view();toast("Group changed to "+g.to+" · "+c+" case"+(c===1?"":"s")+" updated.");if(cb)cb(c)}}
+function gcScan(t){var g=KC.parseGroup(t);if(!g){toast("That isn’t a group-change QR.");return}gcConfirm(g)}
+function gcScanBtn(){KC.scan(function(t){gcScan(t)})}
+function gKnow(s2,done){
+ var pv=prevGrp(s2.student);
+ function sched(gcn){
+  var now=Date.now(),ck=gCheck(s2.group,now),n=ck.has?gMk(ck):null;
+  if(gcn){n=n||{};n.c=gcn}
+  if(ck.has&&ck.k==="day"){
+   var days=ck.L.map(function(x){return DAYS[x.d]+" "+ttRange(x)}).join("<br>");
+   var m=KC.modal('<b style="color:#b91c1c">Not this group’s day</b><div class="m" dir="auto" style="margin:6px 0">'+esc(s2.student)+' · Group '+esc(s2.group)+'</div><div>Today is <b>'+DAYS[ck.dow]+'</b>. Group '+esc(s2.group)+' works on:<br><b>'+days+'</b></div><div class="m" style="margin-top:6px">This student should not start today. You can still allow it.</div><div class="row"><button class="b" data-no style="flex:1">Don’t start</button><button class="b d" data-ok style="flex:1">Allow anyway</button></div>'),b=m.el.querySelector("[data-ok]"),armed=false,tm;
+   m.el.querySelector("[data-no]").onclick=function(){m.close();toast("Case not started.")};
+   b.onclick=function(){
+    if(!armed){armed=true;b.textContent="Press again to allow";tm=setTimeout(function(){armed=false;b.textContent="Allow anyway"},5000);return}
+    clearTimeout(tm);m.close();n.a=1;
+    bigNote("<b>Allowed outside the group’s day</b><br>"+esc(s2.student)+" · Group "+esc(s2.group)+" works on other days. A note was added to the case.","#b91c1c",NOTE_MS);
+    done({gn:n})};
+   return}
+  if(ck.has&&(ck.k==="early"||ck.k==="late"||ck.k==="after"))bigNote(gnBig(s2,ck),ck.k==="after"?"#b91c1c":"#b45309",NOTE_MS);
+  done({gn:n})}
+ if(pv&&pv.g!==s2.group){
+  var m2=KC.modal('<b style="color:#b45309">Group changed</b><div dir="auto" style="margin:6px 0"><b>'+esc(s2.student)+'</b></div><div>Last graded case: <b>Group '+esc(pv.g)+'</b> ('+pv.n+' graded case'+(pv.n>1?"s":"")+').<br>This case says: <b>Group '+esc(s2.group)+'</b>.</div><div class="m" style="margin:8px 0">Reject the case, or confirm the change. To confirm, scan the <b>Verify group change</b> QR from the student’s Profile.</div><div class="row"><button class="b d" data-rj style="flex:1">Reject case</button><button class="b p" data-cf style="flex:1">Confirm group change</button></div>');
+  m2.el.querySelector("[data-rj]").onclick=function(){m2.close();toast("Case rejected.")};
+  m2.el.querySelector("[data-cf]").onclick=function(){m2.close();
+   KC.scan(function(t){var g=KC.parseGroup(t);
+    if(!g){toast("That isn’t a group-change QR. Ask the student to open Profile → Verify group change.");return}
+    if(skey(g.student)!==skey(s2.student)||g.to!==s2.group){toast("That QR is for a different student or group. The case was not started.");return}
+    gcConfirm({id:g.id,student:g.student,from:pv.g,to:g.to,at:g.at},function(){sched([pv.g,s2.group])})})};
+ }else sched(null)}
+function startScan(s2){
+ var l0=CAS(),c0=l0.filter(function(x){return x.id===s2.id})[0];
+ if(c0){if(c0.state==="transferred"){toast("This case was transferred to another doctor.");return}if(c0.state==="running"||c0.state==="paused"||c0.state==="grading"){toast("This case’s timer is already running.");return}if(c0.state==="done"){toast("This case has already been graded.");return}}
+ gKnow(s2,function(r){
+  var l=CAS(),i=l.findIndex(function(x){return x.id===s2.id}),c;
+  if(i>=0){c=l[i];Object.assign(c,s2,{str:sstr(s2),fromStart:true})}
+  else{c=Object.assign({},s2,{str:sstr(s2),ts:Date.now(),state:"none",fromStart:true});l.push(c)}
+  if(r&&r.gn)c.gn=r.gn;else delete c.gn;
+  sv("kc_cas",l);view();startTimer(s2.id)})}
+/* ---- time table editor ---- */
+function ttUI(){
+ var edit=-1,cur={g:"F",d:1,s:630,e:750},m=KC.modal('<div data-b></div>'),b=m.el.querySelector("[data-b]");
+ var SS='padding:9px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:calc(16px / var(--fz,1));background:#fff;color:#111;min-width:0;flex:1',NS='width:64px;padding:8px;border:1px solid #bbb;border-radius:8px;font:inherit;font-size:calc(16px / var(--fz,1));text-align:center;background:#fff;color:#111';
+ function tsel(p,min){var h24=Math.floor(min/60),h12=h24%12||12,mm=min%60,ho="",mo="",i;for(i=1;i<=12;i++)ho+='<option'+(i===h12?" selected":"")+'>'+i+'</option>';for(i=0;i<60;i++)mo+='<option value="'+i+'"'+(i===mm?" selected":"")+'>'+("0"+i).slice(-2)+'</option>';
+  return'<div class="row" style="margin:4px 0 0;gap:6px;align-items:center"><select data-n="'+p+'h" style="'+SS+'">'+ho+'</select><b>:</b><select data-n="'+p+'m" style="'+SS+'">'+mo+'</select><select data-n="'+p+'a" style="'+SS+'"><option'+(h24<12?" selected":"")+'>AM</option><option'+(h24>=12?" selected":"")+'>PM</option></select></div>'}
+ function rd(p){var h=(+b.querySelector('[data-n="'+p+'h"]').value)%12,mm=+b.querySelector('[data-n="'+p+'m"]').value,ap=b.querySelector('[data-n="'+p+'a"]').value;return(h+(ap==="PM"?12:0))*60+mm}
+ function draw(){
+  var T=TT().map(function(x,i){return{x:x,i:i}}).sort(function(a,c){return a.x.g.localeCompare(c.x.g)||a.x.d-c.x.d||a.x.s-c.x.s}),h='<b>Group time table</b><div class="m" style="margin:4px 0 8px">Each group’s day and time. When a student scans a start QR, the app checks it against this table.</div>',i,go="",dy="";
+  T.forEach(function(t){h+='<div class="row" style="margin:0;align-items:center;border-bottom:1px solid #eee;padding:5px 0"><span style="flex:1;min-width:0"><b>Group '+esc(t.x.g)+'</b> · '+DAYS[t.x.d]+' · '+ttRange(t.x)+'</span><button class="b" data-ed="'+t.i+'">Edit</button><button class="b d" data-dl="'+t.i+'">Delete</button></div>'});
+  if(!T.length)h+='<div class="m" style="padding:6px 0">No groups yet. Add the first one below.</div>';
+  for(i=0;i<26;i++){var L=String.fromCharCode(65+i);go+='<option'+(L===cur.g?" selected":"")+'>'+L+'</option>'}
+  for(i=0;i<7;i++)dy+='<option value="'+i+'"'+(i===cur.d?" selected":"")+'>'+DAYS[i]+'</option>';
+  h+='<div style="margin-top:12px;padding-top:8px;border-top:2px solid #ddd"><b>'+(edit>=0?"Edit entry":"Add an entry")+'</b><div class="row" style="margin:6px 0 0;gap:6px"><select data-n="g" style="'+SS+'">'+go+'</select><select data-n="d" style="'+SS+'">'+dy+'</select></div><div class="m" style="margin-top:8px">Starts</div>'+tsel("s",cur.s)+'<div class="m" style="margin-top:8px">Ends</div>'+tsel("e",cur.e)+'<div class="row"><button class="b p" data-add style="flex:1">'+(edit>=0?"Save changes":"Add")+'</button>'+(edit>=0?'<button class="b" data-cn>Cancel</button>':"")+'</div></div>';
+  var S=TTS();h+='<div style="margin-top:12px;padding-top:8px;border-top:2px solid #ddd"><b>When is it “early” or “late”?</b><div class="row" style="align-items:center;gap:8px"><span style="flex:1">Early if more than</span><input data-es inputmode="numeric" value="'+S.e+'" style="'+NS+'"><span>min before</span></div><div class="row" style="align-items:center;gap:8px"><span style="flex:1">Late if more than</span><input data-ls inputmode="numeric" value="'+S.l+'" style="'+NS+'"><span>min after</span></div></div>';
+  b.innerHTML=h}
+ b.addEventListener("change",function(e){var t=e.target;if(t.hasAttribute("data-es")||t.hasAttribute("data-ls")){var v=parseInt(t.value,10),S=TTS();if(isNaN(v)||v<0||v>600){toast("Enter a number of minutes from 0 to 600.");t.value=t.hasAttribute("data-es")?S.e:S.l;return}if(t.hasAttribute("data-es"))S.e=v;else S.l=v;sv("kc_tts",S);toast("Saved.")}});
+ m.el.addEventListener("click",function(e){var t=e.target.closest("button");if(!t||!b.contains(t))return;
+  if(t.hasAttribute("data-ed")){var x=TT()[+t.dataset.ed];if(!x)return;edit=+t.dataset.ed;cur={g:x.g,d:x.d,s:x.s,e:x.e};draw();return}
+  if(t.hasAttribute("data-cn")){edit=-1;draw();return}
+  if(t.hasAttribute("data-dl")){if(!t.dataset.s){t.dataset.s=1;t.textContent="Tap again";setTimeout(function(){if(t.isConnected){delete t.dataset.s;t.textContent="Delete"}},3000);return}var A=TT();A.splice(+t.dataset.dl,1);setTT(A);if(edit>=0)edit=-1;draw();return}
+  if(t.hasAttribute("data-add")){var g=b.querySelector('[data-n="g"]').value,d=+b.querySelector('[data-n="d"]').value,s=rd("s"),en=rd("e");
+   if(en<=s){toast("The end time must be after the start time.");return}
+   var A2=TT(),ent={g:g,d:d,s:s,e:en};
+   if(edit>=0&&A2[edit])A2[edit]=ent;else{var dup=A2.findIndex(function(y){return y.g===g&&y.d===d&&y.s===s&&y.e===en});if(dup<0)A2.push(ent)}
+   setTT(A2);cur=ent;edit=-1;draw();toast("Saved.")}});
+ draw()}
 /* ===== version + update check ===== */
-var APP_VER="1.0.22",APP_REPO="perio-case-sheet-doctor";
+var APP_VER="1.0.25",APP_REPO="perio-case-sheet-doctor";
 function uEsc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function vnum(v){return String(v||"").replace(/^[^\d]*/,"").split(/[.\-+]/).slice(0,4).map(function(x){return parseInt(x,10)||0})}
 function vNewer(a,b){var x=vnum(a),y=vnum(b);for(var i=0;i<4;i++){var p=x[i]||0,q=y[i]||0;if(p!==q)return p>q}return false}
@@ -3408,7 +3592,7 @@ function bytes(s){return te.encode(s).length}
 function nid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function own(c){if(c.fn==null)return true;var a=active();if(!a)return true;return c.did?c.did===a.id:(!c.doc||c.doc===a.name)}
 function xsnap(c,now){var s=c.state,pt=c.pt||0,p0=c.p0==null?null:c.p0;if(s==="grading"){if(c.prev==="running"){pt+=now-p0;p0=null;s="running"}else s="paused"}return{state:s,t0:c.t0,dur:c.dur,pt:pt,p0:p0}}
-function xpack(c,sn){var x=sn||c.xs;return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],x.state,x.t0,x.dur,x.pt,x.p0,c.sess||""]}
+function xpack(c,sn){var x=sn||c.xs;return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],x.state,x.t0,x.dur,x.pt,x.p0,c.sess||"",gcFor(c)]}
 function xchunks(rows,from){var gr=[],cur=[],sz=0;rows.forEach(function(r){var l=bytes(JSON.stringify(r))+1;if(cur.length&&sz+l>900){gr.push(cur);cur=[];sz=0}cur.push(r);sz+=l});if(cur.length)gr.push(cur);var b=nid();return gr.map(function(g,i){return"KT1~"+JSON.stringify({f:from,b:b,k:i+1,n:gr.length,c:g})})}
 function trShareText(chs){
  var txt="Perio Supervisor · "+chs.length+" transfer code"+(chs.length>1?"s":"")+"\nOpen the app → Receive cases → paste everything below.\n\n"+chs.join("\n\n");
@@ -3451,15 +3635,15 @@ function trIn(t){
  if(!d||!Array.isArray(d.c))return null;
  var b=TRB[d.b]||(TRB[d.b]={n:d.n,got:{},add:0,skip:0});
  if(b.got[d.k])return{have:Object.keys(b.got).length,n:b.n,done:false};
- var l=CAS(),now=Date.now();
+ var l=CAS(),now=Date.now(),gcl=[];
  d.c.forEach(function(r){
   var o={id:r[0],student:r[1],patient:r[2],age:r[3],gender:r[4],group:r[5],cli:r[6],bop:r[7],cc:r[8]||[],state:r[9],t0:r[10],dur:r[11],pt:r[12],p0:r[13],sess:r[14]||undefined,fromStart:true,xfrom:d.f,xat:now,ts:now};
-  o.str=sstr(o);
+  o.str=sstr(o);if(r[15]&&r[15][1]===o.group)gcl.push({student:o.student,group:o.group,gc:r[15]});
   var k=l.findIndex(function(x){return x.id===o.id});
   if(k>=0){var cx=l[k];if(cx.state==="transferred"||cx.state==="none"){l[k]=o;b.add++}else b.skip++}
   else{l.push(o);b.add++}
  });
- sv("kc_cas",l);b.got[d.k]=1;b.f=d.f;
+ sv("kc_cas",l);gcIn(gcl);b.got[d.k]=1;b.f=d.f;
  var have=Object.keys(b.got).length,done=have>=b.n,res={have:have,n:b.n,done:done};
  if(done){delete TRB[d.b];view();toast("Received "+b.add+" case"+(b.add===1?"":"s")+(b.f?" from Dr. "+b.f:"")+(b.skip?" ("+b.skip+" already here)":"")+".")}
  return res;
@@ -3484,9 +3668,9 @@ function syncUI(){
  m.el.querySelector("[data-sr]").onclick=function(){m.close();syncRecv()};
 }
 var SYB={};
-function syPack(c){return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],c.sc||[],c.gr,c.fn,c.doc||"",c.did||"",c.ts,c.tk==null?null:c.tk,c.pen||0,c.lm==null?null:c.lm,c.penOn===false?0:1,c.rate==null?null:c.rate,c.dur==null?null:c.dur,c.t0==null?null:c.t0,c.pt||0,c.rc?1:0,c.rcAt||0,c.ex||0]}
+function syPack(c){return[c.id,c.student,c.patient,c.age,c.gender,c.group||"",c.cli==null?"":c.cli,c.bop==null?"":c.bop,c.cc||[],c.sc||[],c.gr,c.fn,c.doc||"",c.did||"",c.ts,c.tk==null?null:c.tk,c.pen||0,c.lm==null?null:c.lm,c.penOn===false?0:1,c.rate==null?null:c.rate,c.dur==null?null:c.dur,c.t0==null?null:c.t0,c.pt||0,c.rc?1:0,c.rcAt||0,c.ex||0,gcFor(c)]}
 function syUnpack(r){var o={id:r[0],student:r[1],patient:r[2],age:r[3],gender:r[4],group:r[5],cli:r[6],bop:r[7],cc:r[8]||[],sc:r[9]||[],gr:r[10],fn:r[11],doc:r[12],ts:r[14],pen:r[16],penOn:!!r[18],state:r[15]!=null?"done":"none"};
- if(r[13])o.did=r[13];if(r[15]!=null){o.tk=r[15];o.lm=r[17]}if(r[19]!=null)o.rate=r[19];if(r[20]!=null)o.dur=r[20];if(r[21]!=null){o.t0=r[21];o.fromStart=true}o.pt=r[22]||0;if(r[23]){o.rc=true;if(r[24])o.rcAt=r[24]}if(r[25]>0)o.ex=r[25];o.str=sstr(o);return o}
+ if(r[13])o.did=r[13];if(r[15]!=null){o.tk=r[15];o.lm=r[17]}if(r[19]!=null)o.rate=r[19];if(r[20]!=null)o.dur=r[20];if(r[21]!=null){o.t0=r[21];o.fromStart=true}o.pt=r[22]||0;if(r[23]){o.rc=true;if(r[24])o.rcAt=r[24]}if(r[25]>0)o.ex=r[25];if(r[26])o.gc=r[26];o.str=sstr(o);return o}
 function sychunks(rows,from){var gr=[],cur=[],sz=0;rows.forEach(function(r){var l=bytes(JSON.stringify(r))+1;if(cur.length&&sz+l>950){gr.push(cur);cur=[];sz=0}cur.push(r);sz+=l});if(cur.length)gr.push(cur);var b=nid();return gr.map(function(g,i){return"KY1~"+JSON.stringify({f:from,b:b,k:i+1,n:gr.length,c:g})})}
 function syQrSend(){
  var all=CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"});
@@ -3539,7 +3723,7 @@ function syReview(inc,from){
   syReview2(out,from)};
 }
 function syReview2(inc,from){
- var cs=CAS(),nw=[],cf=[],up=[],same=0,skip=0,rcn=0;
+ var cs=CAS(),nw=[],cf=[],up=[],same=0,skip=0,rcn=0,gcl=[];inc.forEach(function(o){if(o&&o.gc){gcl.push({student:o.student,group:o.group,gc:o.gc});delete o.gc}});
  inc.forEach(function(o){if(o&&o.fn!=null&&o.rc){var l0=cs.filter(function(x){return x.id===o.id})[0];if(l0&&l0.fn!=null&&!l0.rc){l0.rc=true;if(o.rcAt)l0.rcAt=o.rcAt;rcn++}}});
  if(rcn)sv("kc_cas",cs);
  inc.forEach(function(o){
@@ -3550,7 +3734,7 @@ function syReview2(inc,from){
   var sd=l.did&&o.did?l.did===o.did:l.doc===o.doc;
   if(!sd)cf.push({a:l,b:o});else if((o.ts||0)>(l.ts||0))up.push(o);else same++;
  });
- if(!nw.length&&!cf.length&&!up.length){if(rcn){view();toast("Receipt marks updated for "+rcn+" case"+(rcn>1?"s":"")+".")}else KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all the cases received'+(from?" from Dr. "+esc(from):"")+'.'+(skip?" ("+skip+" still ongoing here.)":"")+'</div>');return}
+ if(!nw.length&&!cf.length&&!up.length){gcIn(gcl);if(rcn){view();toast("Receipt marks updated for "+rcn+" case"+(rcn>1?"s":"")+".")}else KC.modal('<b>Nothing new</b><div class="m" style="margin-top:6px">You already have all the cases received'+(from?" from Dr. "+esc(from):"")+'.'+(skip?" ("+skip+" still ongoing here.)":"")+'</div>');return}
  var h='<b>Received cases</b><div class="m" style="margin:4px 0 6px">'+(from?"From Dr. "+esc(from)+". ":"")+(same?same+" already on your phone. ":"")+(up.length?up.length+" newer version(s) of cases you already have will be updated. ":"")+'</div>';
  if(cf.length){h+='<div style="margin-top:6px;padding:8px;border:2px solid #b45309;border-radius:10px;background:#fffbeb"><b style="color:#b45309">Same case, graded by different doctors ('+cf.length+')</b><div class="m" style="margin:2px 0 6px">Only the latest grade counts, so the newer one is selected for you. Change it only if you need to.</div>';
   cf.forEach(function(p,i){h+='<div style="margin-bottom:10px"><div dir="auto"><b>'+esc(p.a.patient)+'</b> <span class="m">· '+esc(p.a.student)+' · Group '+esc(p.a.group)+'</span></div>'+'<div style="display:flex;gap:6px;margin-top:4px">'+cfSide(p.a,"This phone"+(((p.b.ts||0)>(p.a.ts||0))?"":" · newer ✓"),i,"mine",!((p.b.ts||0)>(p.a.ts||0)))+cfSide(p.b,"Received"+(((p.b.ts||0)>(p.a.ts||0))?" · newer ✓":""),i,"theirs",(p.b.ts||0)>(p.a.ts||0))+'</div></div>'});
@@ -3562,11 +3746,11 @@ function syReview2(inc,from){
  var m=KC.modal(h);
  m.el.addEventListener("change",function(e){if(e.target.hasAttribute("data-all"))m.el.querySelectorAll("[data-nc]").forEach(function(x){x.checked=e.target.checked})});
  m.el.querySelector("[data-add]").onclick=function(){
-  var l=CAS(),n=0,put=function(o){var k=l.findIndex(function(x){return x.id===o.id});if(k>=0){if(l[k].rc&&!o.rc){o.rc=true;o.rcAt=l[k].rcAt}l[k]=o}else l.push(o)};
+  var l=CAS(),n=0,ap={},put=function(o){ap[skey(o.student)]=1;var k=l.findIndex(function(x){return x.id===o.id});if(k>=0){if(l[k].rc&&!o.rc){o.rc=true;o.rcAt=l[k].rcAt}l[k]=o}else l.push(o)};
   [].forEach.call(m.el.querySelectorAll("[data-nc]:checked"),function(x){put(nw[+x.dataset.nc]);n++});
   up.forEach(function(o){put(o);n++});
   cf.forEach(function(p,i){var r=m.el.querySelector('input[name="cf'+i+'"]:checked');if(r&&r.value==="theirs"){put(p.b);n++}});
-  sv("kc_cas",l);m.close();view();toast("Applied · "+n+" case"+(n===1?"":"s")+" added or updated.")};
+  sv("kc_cas",l);gcIn(gcl.filter(function(g){return ap[skey(g.student)]}));m.close();view();toast("Applied · "+n+" case"+(n===1?"":"s")+" added or updated.")};
 }
 function syncSend(){
  var cs=CAS().filter(function(c){return c.fn!=null&&c.state!=="transferred"});
@@ -3643,6 +3827,7 @@ async function restoreGraded(t){
  if(i>=0&&l[i].fn!=null){toast("This case is already on your phone and graded.");return}
  var c=Object.assign({},s2,{str:cs,sc:P.sc,gr:P.gr,fn:P.fn,ex:P.ex||0,sgv:a.sgv||"0",doc:a.name,did:a.id,ts:P.at||Date.now(),pen:P.pn||0});
  if(P.tk!=null){c.state="done";c.tk=P.tk;c.lm=P.lm;c.penOn=(P.pn||0)>0}
+ var GL=gcLatest(c.student);if(GL&&GL.at>(c.ts||0)&&GL.to!==c.group){c.group=GL.to;c.str=sstr(c)}
  if(i>=0)Object.assign(l[i],c);else l.push(c);
  sv("kc_cas",l);view();toast("Graded case restored: "+p.patient)
 }
@@ -3650,11 +3835,8 @@ $("#main").addEventListener("click",function(e){
  var b=e.target.closest("[data-a]");if(!b)return;var a=b.dataset.a,id=b.dataset.id;
  if(a==="scan")KC.scan(function(t){
   if(String(t).slice(0,4)==="KR1~"){restoreGraded(t);return}
-  if(String(t).slice(0,4)==="KT1~"){var tr0=trIn(t);if(tr0&&!tr0.done)trScan();return}if(String(t).slice(0,4)==="KY1~"){var sy0=syIn(t);if(sy0){if(sy0.done)syShow(sy0.rows,sy0.f);else syScan()}return}var s2=KC.parseStart(t);
-  if(s2){var l0=CAS(),i0=l0.findIndex(function(x){return x.id===s2.id}),c0;
-   if(i0>=0){c0=l0[i0];if(c0.state==="transferred"){toast("This case was transferred to another doctor.");return}if(c0.state==="running"||c0.state==="paused"||c0.state==="grading"){toast("This case’s timer is already running.");return}if(c0.state==="done"){toast("This case has already been graded.");return}Object.assign(c0,s2,{str:sstr(s2),fromStart:true})}
-   else l0.push(Object.assign({},s2,{str:sstr(s2),ts:Date.now(),state:"none",fromStart:true}));
-   sv("kc_cas",l0);view();startTimer(s2.id);return}
+  if(String(t).slice(0,4)==="KT1~"){var tr0=trIn(t);if(tr0&&!tr0.done)trScan();return}if(String(t).slice(0,4)==="KY1~"){var sy0=syIn(t);if(sy0){if(sy0.done)syShow(sy0.rows,sy0.f);else syScan()}return}if(String(t).slice(0,4)==="KG1|"){gcScan(t);return}var s2=KC.parseStart(t);
+  if(s2){startScan(s2);return}
   var p=KC.parseCase(t);if(!p){toast("That isn’t a student case QR code.");return}
   var l=CAS(),i=l.findIndex(function(x){return x.id===p.id});
   if(i>=0)Object.assign(l[i],p);else l.push(Object.assign(p,{ts:Date.now()}));
@@ -3662,7 +3844,7 @@ $("#main").addEventListener("click",function(e){
 
  else if(a==="stop"||a==="resume"){var c1=getCase(id);if(c1){(a==="stop"?pauseC:resumeC)(c1,Date.now());putCase(c1);view()}}
  else if(a==="stopall"||a==="resumeall"){var n1=Date.now(),L1=CAS();L1.forEach(function(c){(a==="stopall"?pauseC:resumeC)(c,n1)});sv("kc_cas",L1);view();toast(a==="stopall"?"All running timers stopped.":"Stopped timers resumed.")}
- else if(a==="trsend")trSend();else if(a==="trrecv")trRecv();else if(a==="trshow")trShow(id);else if(a==="sync")syncUI();else if(a==="gpdf")gradesUI();
+ else if(a==="tt")ttUI();else if(a==="gscan")gcScanBtn();else if(a==="trsend")trSend();else if(a==="trrecv")trRecv();else if(a==="trshow")trShow(id);else if(a==="sync")syncUI();else if(a==="gpdf")gradesUI();
  else if(a==="tstart")startTimer(id); else if(a==="open")editor(id);else if(a==="share")share(id);
  else if(a==="del"||a==="dacc"){
   if(!b.dataset.s){b.dataset.s=1;b.textContent="Tap again";setTimeout(function(){if(b.isConnected){delete b.dataset.s;b.textContent=a==="del"?"Delete":"Delete"}},3000);return}
